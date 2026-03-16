@@ -148,15 +148,8 @@ class User(db.Model, UserMixin):
     _name = db.Column(db.String(255), unique=False, nullable=False)
     _uid = db.Column(db.String(255), unique=True, nullable=False)
     _email = db.Column(db.String(255), unique=False, nullable=False)
-    _sid = db.Column(db.String(255), unique=False, nullable=True)
     _password = db.Column(db.String(255), unique=False, nullable=False)
     _role = db.Column(db.String(20), default="User", nullable=False)
-    _pfp = db.Column(db.String(255), unique=False, nullable=True)
-    kasm_server_needed = db.Column(db.Boolean, default=False)
-    _grade_data = db.Column(db.JSON, unique=False, nullable=True)
-    _ap_exam = db.Column(db.JSON, unique=False, nullable=True)
-    _class = db.Column(db.JSON, unique=False, nullable=True)
-    _school = db.Column(db.String(255), default="Unknown", nullable=True)
 
     # Define many-to-many relationship with Section model through UserSection table
     # Overlaps setting silences SQLAlchemy warnings about multiple relationship paths
@@ -170,21 +163,12 @@ class User(db.Model, UserMixin):
     personas = db.relationship('Persona', secondary='user_personas', lazy='subquery',
                                overlaps="user_personas_rel,persona,users")
     
-    def __init__(self, name, uid, password=app.config["DEFAULT_PASSWORD"], kasm_server_needed=False, role="User", pfp='', grade_data=None, ap_exam=None, school="Unknown", sid=None, classes=None):
+    def __init__(self, name, uid, password=app.config["DEFAULT_PASSWORD"], role="User", **kwargs):
         self._name = name
         self._uid = uid
-        self._email = "?"
-        self._sid = sid
+        self._email = kwargs.get('email', '?') or '?'
         self.set_password(password)
-        self.kasm_server_needed = kasm_server_needed
         self._role = role
-        self._pfp = pfp
-        self._grade_data = grade_data if grade_data else {}
-        self._ap_exam = ap_exam if ap_exam else {}
-        # _class stores a list of class abbreviations the user belongs to (e.g. CSSE, CSP, CSA)
-        # keep it as a JSON column in the DB
-        self._class = classes if classes is not None else []
-        self._school = school
 
     # UserMixin/Flask-Login requires a get_id method to return the id as a string
     def get_id(self):
@@ -205,26 +189,13 @@ class User(db.Model, UserMixin):
     def is_anonymous(self):
         return False
     
-    # validate uid is a unique GitHub username
     @property
     def email(self):
         return self._email
-    
+
     @email.setter
     def email(self, email):
-        if email is None or email == "":
-            self._email = "?"
-        else:
-            self._email = email
-        
-    def set_email(self):
-        """Set the email of the user based on the UID, the GitHub username."""
-        data, status = GitHubUser().get(self._uid)
-        if status == 200:
-            self.email = data.get("email", "?")
-            pass
-        else:
-            self.email = "?"
+        self._email = email if email else '?'
 
     # a name getter method, extracts name from object
     @property
@@ -245,16 +216,6 @@ class User(db.Model, UserMixin):
     @uid.setter
     def uid(self, uid):
         self._uid = uid
-
-    # Student ID getter method
-    @property
-    def sid(self):
-        return self._sid
-
-    # Student ID setter function
-    @sid.setter
-    def sid(self, sid):
-        self._sid = sid
 
     # check if uid parameter matches user id in object, return boolean
     def is_uid(self, uid):
@@ -298,48 +259,6 @@ class User(db.Model, UserMixin):
 
     def is_teacher(self):
         return self._role == "Teacher"
-    
-    # getter method for profile picture
-    @property
-    def pfp(self):
-        return self._pfp
-
-    # setter function for profile picture
-    @pfp.setter
-    def pfp(self, pfp):
-        self._pfp = pfp
-
-    @property
-    def grade_data(self):
-        """Gets the user's grade data."""
-        if self._grade_data is None:
-            return {}
-        return self._grade_data
-
-    @grade_data.setter
-    def grade_data(self, grade_data):
-        """Sets the user's grade data."""
-        self._grade_data = grade_data if grade_data is not None else {}
-
-    @property
-    def ap_exam(self):
-        """Gets the user's AP exam data."""
-        if self._ap_exam is None:
-            return {}
-        return self._ap_exam
-
-    @ap_exam.setter
-    def ap_exam(self, ap_exam):
-        """Sets the user's AP exam data."""
-        self._ap_exam = ap_exam if ap_exam is not None else {}
-
-    @property
-    def school(self):
-        return self._school
-
-    @school.setter
-    def school(self, school):
-        self._school = school
 
     # CRUD create/add a new record to the table
     # returns self or None on error
@@ -362,97 +281,27 @@ class User(db.Model, UserMixin):
             "uid": self.uid,
             "name": self.name,
             "email": self.email,
-            "sid": self.sid,
             "role": self.role,
-            "pfp": self.pfp,
-            "class": self._class if self._class is not None else [],
-            "kasm_server_needed": self.kasm_server_needed,
-            "grade_data": self.grade_data,
-            "ap_exam": self.ap_exam,
-            "password": self._password,  # Only for internal use, not for API
-            "school": self.school
+            "is_admin": self.is_admin(),
         }
-        sections = self.read_sections()
-        data.update(sections)
-        personas = self.read_personas()
-        data.update(personas)
         return data
         
-    # CRUD update: updates user name, password, phone
+    # CRUD update: updates user fields
     # returns self
     def update(self, inputs):
         if not isinstance(inputs, dict):
             return self
 
-        name = inputs.get("name", "")
-        uid = inputs.get("uid", "")
-        email = inputs.get("email", "")
-        sid = inputs.get("sid", "")
-        password = inputs.get("password", "")
-        pfp = inputs.get("pfp", None)
-        kasm_server_needed = inputs.get("kasm_server_needed", None)
-        grade_data = inputs.get("grade_data", None)
-        ap_exam = inputs.get("ap_exam", None)
-        class_list = inputs.get("class", None) or inputs.get("_class", None)
-        school = inputs.get("school", None)
-        # States before update
-        old_uid = self.uid
-        old_kasm_server_needed = self.kasm_server_needed
-
-        # Update table with new data
-        if name:
-            self.name = name
-        if uid:
-            self.set_uid(uid)
-        if email:
-            self.email = email
-        if sid:
-            self.sid = sid
-        if password:
-            self.set_password(password)
-        if pfp is not None:
-            self.pfp = pfp
-        if kasm_server_needed is not None:
-            self.kasm_server_needed = bool(kasm_server_needed)
-        if grade_data is not None:
-            self.grade_data = grade_data
-        if ap_exam is not None:
-            self.ap_exam = ap_exam
-        if class_list is not None:
-            # Ensure class_list is a list; accept a single string as convenience
-            if isinstance(class_list, str):
-                self._class = [class_list]
-            else:
-                self._class = class_list
-        if school is not None:
-            self.school = school
-
-        # Check this on each update
-        if not email:
-            if email == "?":
-                self.set_email()
-
-        # Make a KasmUser object to interact with the Kasm API
-        # Wrap in try-except to ensure db.session.commit() occurs even if Kasm operations fail
-        try:
-            kasm_user = KasmUser()
-
-            # Update Kasm server group membership if needed
-            if self.kasm_server_needed:
-                # UID has changed, delete old Kasm user if it exists
-                if old_uid != self.uid:
-                    kasm_user.delete(old_uid)
-                # Create or update the user in Kasm, including a password
-                kasm_user.post(self.name, self.uid, password if password else app.config["DEFAULT_PASSWORD"])
-                # User is transtioning from non-Kasm to Kasm user, thus it requires posting all groups to Kasm
-                if not old_kasm_server_needed:
-                    kasm_user.post_groups(self.uid, [section.abbreviation for section in self.sections])
-            # User is transitioning from Kasm user to non-Kasm user, thus it requires cleanup of defunct Kasm user
-            elif old_kasm_server_needed:
-                kasm_user.delete(self.uid)
-        except Exception as e:
-            # Log the error but continue to db.session.commit()
-            print(f"Kasm API error for user {self.uid}: {e}")
+        if inputs.get("name"):
+            self.name = inputs["name"]
+        if inputs.get("uid"):
+            self.set_uid(inputs["uid"])
+        if inputs.get("email"):
+            self.email = inputs["email"]
+        if inputs.get("password"):
+            self.set_password(inputs["password"])
+        if inputs.get("role"):
+            self._role = inputs["role"]
 
         try:
             db.session.commit()
@@ -465,12 +314,11 @@ class User(db.Model, UserMixin):
     # None
     def delete(self):
         try:
-            KasmUser().delete(self.uid)
             db.session.delete(self)
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-        return None   
+        return None
     
     def save_pfp(self, image_data, filename):
         """For saving profile picture."""
@@ -634,76 +482,14 @@ class User(db.Model, UserMixin):
 # Builds working data set for testing
 def initUsers():
     with app.app_context():
-        """Create database and tables"""
         db.create_all()
-        """Tester data for table"""
-        
-        default_grade_data = {
-            'grade': 'A',
-            'attendance': 5,
-            'work_habits': 5,
-            'behavior': 5,
-            'timeliness': 5,
-            'tech_sense': 4,
-            'tech_talk': 4,
-            'tech_growth': 4,
-            'advocacy': 4,
-            'communication_collaboration': 5,
-            'integrity': 5,
-            'organization': 5
-        }
 
-        default_ap_exam = {
-            'predicted_score': {
-                'practice_based': {
-                    'mcq_2018': 0,
-                    'mcq_2020': 0,
-                    'mcq_2021': 0,
-                    'practice_frq': 0,
-                    'predicted_ap_score': 0,
-                    'confidence_level': 'Low'
-                },
-                'manual_calculator': {
-                    'mcq_score': 60,
-                    'frq_score': 6,
-                    'composite_score': 90,
-                    'predicted_ap_score': 5
-                }
-            },
-            'last_updated': None
-        }
+        u1 = User(name=app.config['ADMIN_USER'], uid=app.config['ADMIN_UID'], password=app.config['ADMIN_PASSWORD'], role="Admin")
+        u2 = User(name=app.config['MY_NAME'], uid=app.config['MY_UID'], password=app.config['MY_PASSWORD'], role=app.config['MY_ROLE'])
 
-        u1 = User(name=app.config['ADMIN_USER'], uid=app.config['ADMIN_UID'], password=app.config['ADMIN_PASSWORD'], pfp=app.config['ADMIN_PFP'], kasm_server_needed=True, role="Admin")
-        u2 = User(name=app.config['USER_NAME'], uid=app.config['USER_UID'], password=app.config['USER_PASSWORD'], pfp=app.config['USER_PFP'])
-        u3 = User(name=app.config['TEACHER_USER'], uid=app.config['TEACHER_UID'], pfp=app.config['TEACHER_PFP'], password=app.config['TEACHER_PASSWORD'], role='Teacher')
-        u4 = User(name=app.config['MY_NAME'], uid=app.config['MY_UID'], pfp=app.config['MY_PFP'], password=app.config['MY_PASSWORD'], role=app.config['MY_ROLE'])
-
-        users = [u1, u2, u3, u4]
-        
-        for user in users:
+        for user in [u1, u2]:
             try:
                 user.create()
             except IntegrityError:
-                '''fails with bad or duplicate data'''
                 db.session.remove()
-                print(f"Records exist, duplicate email, or error: {user.uid}")
-
-        s1 = Section(name='Computer Science A', abbreviation='CSA')
-        s2 = Section(name='Computer Science Principles', abbreviation='CSP')
-        s3 = Section(name='Engineering Robotics', abbreviation='Robotics')
-        s4 = Section(name='Computer Science and Software Engineering', abbreviation='CSSE')
-        sections = [s1, s2, s3, s4]
-        
-        for section in sections:
-            try:
-                section.create()    
-            except IntegrityError:
-                '''fails with bad or duplicate data'''
-                db.session.remove()
-                print(f"Records exist, duplicate email, or error: {section.name}")
-            
-        u1.add_section(s1)
-        u1.add_section(s2)
-        u2.add_section(s2)
-        u2.add_section(s3)
-        u3.add_section(s4)
+                print(f"Records exist or duplicate: {user.uid}")
