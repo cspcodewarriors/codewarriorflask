@@ -18,7 +18,7 @@ class BlogAPI:
         Main blog post CRUD operations.
 
         POST   /api/blog  — Admin creates a new blog post (saved as draft by default)
-        GET    /api/blog  — Anyone can read all published posts; Admins see all including drafts
+        GET    /api/blog  — Public sees published posts only; Admins see all including drafts
         PUT    /api/blog  — Admin updates an existing post by id
         DELETE /api/blog  — Admin deletes a post by id
         """
@@ -28,8 +28,8 @@ class BlogAPI:
             """
             Create a new blog post.
 
-            Reads from the JSON body. The author name is pulled automatically
-            from the authenticated user via the foreign key — no need to pass it manually.
+            user_id and author are resolved automatically from the JWT cookie
+            inside BlogPost.__init__() — no need to pass them in the request body.
 
             Required fields: event_date, title, description
             Optional fields: program_tag, published (bool, defaults to False)
@@ -37,7 +37,6 @@ class BlogAPI:
             Returns:
                 JSON response with the created blog post or an error message.
             """
-            current_user = g.current_user
             body = request.get_json()
 
             # Validate required fields
@@ -53,20 +52,19 @@ class BlogAPI:
             if not description or len(description) < 2:
                 return {'message': 'description is required and must be at least 2 characters'}, 400
 
-            # Optional fields
             program_tag = body.get('program_tag', None)
             published = body.get('published', False)
 
-            # Build and save the post — author name comes from the linked User record
-            post = BlogPost(
-                user_id=current_user.id,
-                author=current_user.name,
-                event_date=event_date,
-                title=title,
-                description=description,
-                program_tag=program_tag,
-                published=published
-            )
+            try:
+                post = BlogPost(
+                    event_date=event_date,
+                    title=title,
+                    description=description,
+                    program_tag=program_tag,
+                    published=published
+                )
+            except ValueError as e:
+                return {'message': str(e)}, 401
 
             result = post.create()
             if not result:
@@ -78,32 +76,35 @@ class BlogAPI:
             """
             Retrieve blog posts.
 
-            - Public users see only published posts.
-            - Admins (via token) see all posts including drafts.
+            - Public (no token): published posts only.
+            - Authenticated Admin (token in cookie): all posts including drafts.
 
             Query Parameters:
                 program_tag (str): Filter posts by SIP program tag.
-                published (bool): Filter by published status (Admin only).
+                published (str): "true"/"false" filter — Admin only.
 
             Returns:
                 JSON list of blog post dictionaries.
             """
-            # Check if an admin token was provided — admins see all posts
-            auth_header = request.cookies.get(app.config.get("JWT_TOKEN_NAME", "jwt_token")) or \
-                          request.headers.get("Authorization", "").replace("Bearer ", "")
-
+            # Check if the request carries a valid Admin token
+            # Uses token_required logic manually here so GET stays publicly accessible
             is_admin = False
-            if auth_header:
-                try:
-                    import jwt
-                    data = jwt.decode(auth_header, app.config["SECRET_KEY"], algorithms=["HS256"])
-                    user = User.query.filter_by(_uid=data.get("_uid")).first()
-                    if user and user.is_admin():
-                        is_admin = True
-                except Exception:
-                    pass
+            current_user = g.get('current_user', None)
+            if current_user and current_user.is_admin():
+                is_admin = True
+            else:
+                # Try decoding the cookie directly without blocking the request
+                import jwt as pyjwt
+                token = request.cookies.get(app.config.get("JWT_TOKEN_NAME", "jwt_token"))
+                if token:
+                    try:
+                        data = pyjwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+                        user = User.query.filter_by(_uid=data.get("_uid")).first()
+                        if user and user.is_admin():
+                            is_admin = True
+                    except Exception:
+                        pass
 
-            # Build base query
             query = BlogPost.query
 
             # Filter by program tag if provided
@@ -115,7 +116,6 @@ class BlogAPI:
             if not is_admin:
                 query = query.filter_by(_published=True)
             else:
-                # Admins can optionally filter by published status
                 published_filter = request.args.get('published')
                 if published_filter is not None:
                     query = query.filter_by(_published=published_filter.lower() == 'true')
@@ -179,7 +179,7 @@ class BlogAPI:
         """
         Publish / unpublish a blog post.
 
-        POST /api/blog/publish  — Toggle published status for a post by id
+        POST /api/blog/publish  — Toggle published status for a post by id (Admin only)
         """
 
         @token_required("Admin")
@@ -225,8 +225,11 @@ class BlogAPI:
             """
             Get blog posts by user.
 
+            - Any authenticated user can retrieve their own posts.
+            - Admins can pass ?uid= to retrieve another user's posts.
+
             Query Parameters:
-                uid (str): Target user's uid — Admin only. Defaults to current user.
+                uid (str): Target user's uid — Admin only.
 
             Returns:
                 JSON list of blog posts belonging to the user.
@@ -249,6 +252,8 @@ class BlogAPI:
         Retrieve a single blog post by id.
 
         GET /api/blog/post?id=<id>
+        - Public: published posts only.
+        - Admin (token in cookie): can also retrieve drafts.
         """
 
         def get(self):
@@ -269,14 +274,13 @@ class BlogAPI:
             if not post:
                 return {'message': f'Blog post {post_id} not found'}, 404
 
-            # Non-admins can only view published posts
-            auth_header = request.cookies.get(app.config.get("JWT_TOKEN_NAME", "jwt_token")) or \
-                          request.headers.get("Authorization", "").replace("Bearer ", "")
+            # Check admin status from cookie without blocking public access
             is_admin = False
-            if auth_header:
+            import jwt as pyjwt
+            token = request.cookies.get(app.config.get("JWT_TOKEN_NAME", "jwt_token"))
+            if token:
                 try:
-                    import jwt
-                    data = jwt.decode(auth_header, app.config["SECRET_KEY"], algorithms=["HS256"])
+                    data = pyjwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
                     user = User.query.filter_by(_uid=data.get("_uid")).first()
                     if user and user.is_admin():
                         is_admin = True
