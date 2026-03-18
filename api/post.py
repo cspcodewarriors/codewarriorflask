@@ -142,19 +142,21 @@ class PostDetailAPI(Resource):
             if not post:
                 return {'message': 'Post not found'}, 404
             
-            # Check if user owns the post
-            if post._user_id != current_user.id:
+            # Check if user owns the post or is an admin
+            if post._user_id != current_user.id and not current_user.is_admin():
                 return {'message': 'You can only update your own posts'}, 403
-            
+
             # Get update data
             data = request.get_json()
             if not data:
                 return {'message': 'No data provided'}, 400
-            
+
             # Update the post
             updated_post = post.update(
                 content=data.get('content'),
-                grade_received=data.get('gradeReceived')
+                grade_received=data.get('gradeReceived'),
+                page_url=data.get('pageUrl'),
+                page_title=data.get('pageTitle')
             )
             
             return updated_post.read(), 200
@@ -176,8 +178,8 @@ class PostDetailAPI(Resource):
             if not post:
                 return {'message': 'Post not found'}, 404
             
-            # Check if user owns the post
-            if post._user_id != current_user.id:
+            # Check if user owns the post or is an admin
+            if post._user_id != current_user.id and not current_user.is_admin():
                 return {'message': 'You can only delete your own posts'}, 403
             
             # Delete the post

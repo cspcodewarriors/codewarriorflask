@@ -110,13 +110,17 @@ class Post(db.Model):
             'timestamp': self._timestamp.isoformat() if self._timestamp else None,
         }
 
-    def update(self, content=None, grade_received=None):
+    def update(self, content=None, grade_received=None, page_url=None, page_title=None):
         """Update post content"""
         try:
             if content is not None:
                 self._content = content
             if grade_received is not None:
                 self._grade_received = grade_received
+            if page_url is not None:
+                self._page_url = page_url
+            if page_title is not None:
+                self._page_title = page_title
             self._updated_at = datetime.utcnow()
             db.session.commit()
             return self

@@ -149,6 +149,13 @@ def index():
 
 
 
+@app.route('/blog/table')
+@login_required
+def blog_table():
+    if current_user.role != 'Admin':
+        return redirect(url_for('index'))
+    return render_template("blog_table.html")
+
 @app.route('/users/table2')
 @login_required
 def u2table():
