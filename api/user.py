@@ -1,5 +1,6 @@
 import jwt
 from flask import Blueprint, app, request, jsonify, current_app, Response, g
+from flask_login import logout_user
 from flask_restful import Api, Resource # used for REST API building
 from datetime import datetime
 from __init__ import app, db
@@ -451,15 +452,18 @@ class UserAPI:
             ''' Invalidate the current user's token by setting its expiry to 0 '''
             current_user = g.current_user
             try:
+                # Clear Flask-Login session (in case user logged in via session-based login)
+                logout_user()
+
                 # Generate a token with practically 0 age
                 token = jwt.encode(
-                    {"_uid": current_user._uid, 
+                    {"_uid": current_user._uid,
                      "exp": datetime.utcnow()},
                     current_app.config["SECRET_KEY"],
                     algorithm="HS256"
                 )
                 # You might want to log this action or take additional steps here
-                
+
                 # Prepare a response indicating the token has been invalidated
                 resp = Response("Token invalidated successfully")
                 is_production = os.environ.get('IS_PRODUCTION', 'false').lower() == 'true'

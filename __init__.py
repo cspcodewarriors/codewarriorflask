@@ -42,7 +42,7 @@ cors = CORS(
        'https://open-coding-society.github.io',
        'https://pages.opencodingsociety.com',
    ],
-   methods=["GET", "POST", "PUT", "OPTIONS"]
+   methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
 
 
