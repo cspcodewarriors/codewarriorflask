@@ -28,6 +28,7 @@ from hacks.joke import joke_api  # Import the joke API blueprint
 from api.post import post_api  # Import the social media post API
 from api.sip_events_api import sip_events_api  # SIP calendar events
 from api.blog import blog_api
+from api.blog_image import blog_image_api
 #from api.announcement import announcement_api ##temporary revert
 
 # database Initialization functions
@@ -84,6 +85,7 @@ app.register_blueprint(data_export_import_api)  # Register the data export/impor
 app.register_blueprint(joke_api)  # Register the joke API blueprint
 app.register_blueprint(post_api)  # Register the social media post API
 app.register_blueprint(sip_events_api)  # Register the SIP calendar events API
+app.register_blueprint(blog_image_api)
 # app.register_blueprint(announcement_api) ##temporary revert
 
 # Jokes file initialization
