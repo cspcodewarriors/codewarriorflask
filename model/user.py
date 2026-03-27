@@ -132,15 +132,10 @@ class User(db.Model, UserMixin):
         _name (Column): A string representing the user's name. It is not unique and cannot be null.
         _uid (Column): A unique string identifier for the user, cannot be null.
         _email (Column): A string representing the user's email address. It is not unique and cannot be null.
-        _sid (Column): A string representing the user's student ID. It is not unique and can be null.
         _password (Column): A string representing the hashed password of the user. It is not unique and cannot be null.
         _role (Column): A string representing the user's role within the application. Defaults to "User".
-        _pfp (Column): A string representing the path to the user's profile picture. It can be null.
-        kasm_server_needed (Column): A boolean indicating whether the user requires a Kasm server.
-        sections (Relationship): A many-to-many relationship between users and sections, allowing users to be associated with multiple sections.
-        _grade_data (Column): A JSON object representing the user's grade data.
-        _ap_exam (Column): A JSON object representing the user's AP exam data.
-        _school (Column): A string representing the user's school, defaults to "Unknown".
+        _garden_sprite (Column): A string storing the emoji the user picked for the community garden.
+                                 Nullable — users who have not visited the garden yet will have None here.
     """
     __tablename__ = 'users'
 
@@ -150,6 +145,9 @@ class User(db.Model, UserMixin):
     _email = db.Column(db.String(255), unique=False, nullable=False)
     _password = db.Column(db.String(255), unique=False, nullable=False)
     _role = db.Column(db.String(20), default="User", nullable=False)
+    # Garden sprite: stores the emoji the user chose on the community garden page.
+    # Nullable so existing users are unaffected until they visit the garden.
+    _garden_sprite = db.Column(db.String(10), unique=False, nullable=True, default=None)
 
     # Define many-to-many relationship with Section model through UserSection table
     # Overlaps setting silences SQLAlchemy warnings about multiple relationship paths
@@ -169,6 +167,7 @@ class User(db.Model, UserMixin):
         self._email = kwargs.get('email', '?') or '?'
         self.set_password(password)
         self._role = role
+        self._garden_sprite = None  # Not set until the user visits the garden
 
     # UserMixin/Flask-Login requires a get_id method to return the id as a string
     def get_id(self):
@@ -197,52 +196,40 @@ class User(db.Model, UserMixin):
     def email(self, email):
         self._email = email if email else '?'
 
-    # a name getter method, extracts name from object
     @property
     def name(self):
         return self._name
 
-    # a setter function, allows name to be updated after initial object creation
     @name.setter
     def name(self, name):
         self._name = name
 
-    # a getter method, extracts email from object
     @property
     def uid(self):
         return self._uid
 
-    # a setter function, allows name to be updated after initial object creation
     @uid.setter
     def uid(self, uid):
         self._uid = uid
 
-    # check if uid parameter matches user id in object, return boolean
     def is_uid(self, uid):
         return self._uid == uid
 
     @property
     def password(self):
-        return self._password[0:10] + "..."  # because of security only show 1st characters
+        return self._password[0:10] + "..."
 
-    # set password, this is conventional setter with business logic
     def set_password(self, password):
         """Set password: hash if not already hashed, else set directly."""
         if password and password.startswith("pbkdf2:sha256:"):
-            # Already hashed, set directly
             self._password = password
         else:
-            # Not hashed, hash it
             self._password = generate_password_hash(password, "pbkdf2:sha256", salt_length=10)            
 
-    # check password parameter versus stored/encrypted password
     def is_password(self, password):
         """Check against hashed password."""
-        result = check_password_hash(self._password, password)
-        return result
+        return check_password_hash(self._password, password)
 
-    # output content using str(object) in human readable form, uses getter
-    # output content using json dumps, this is ready for API response
     def __str__(self):
         return json.dumps(self.read())
 
@@ -260,21 +247,48 @@ class User(db.Model, UserMixin):
     def is_teacher(self):
         return self._role == "Teacher"
 
-    # CRUD create/add a new record to the table
-    # returns self or None on error
+    # Garden sprite getter and setter
+    @property
+    def garden_sprite(self):
+        return self._garden_sprite
+
+    @garden_sprite.setter
+    def garden_sprite(self, sprite):
+        """Store the emoji string the user chose on the garden page."""
+        self._garden_sprite = sprite
+
+    # CRUD create
     def create(self, inputs=None):
         try:
-            db.session.add(self)  # add prepares to persist person object to Users table
-            db.session.commit()  # SqlAlchemy "unit of work pattern" requires a manual commit
+            db.session.add(self)
+            db.session.commit()
             if inputs:
                 self.update(inputs)
+            # Auto-assign a garden sprite if not already set
+            if not self._garden_sprite:
+                self._auto_assign_sprite()
             return self
         except IntegrityError:
             db.session.rollback()
             return None
 
-    # CRUD read converts self to dictionary
-    # returns dictionary
+    def _auto_assign_sprite(self):
+        """
+        Automatically assign the least-used garden sprite to this user.
+        Called during create() so every new user gets a sprite immediately.
+        """
+        from sqlalchemy import func
+        used_counts = {sprite: 0 for sprite in GARDEN_SPRITES}
+        results = db.session.query(User._garden_sprite, func.count(User._garden_sprite)) \
+                            .filter(User._garden_sprite.isnot(None)) \
+                            .group_by(User._garden_sprite).all()
+        for sprite, count in results:
+            if sprite in used_counts:
+                used_counts[sprite] = count
+        self._garden_sprite = min(used_counts, key=used_counts.get)
+        db.session.commit()
+
+    # CRUD read
     def read(self):
         data = {
             "id": self.id,
@@ -283,11 +297,11 @@ class User(db.Model, UserMixin):
             "email": self.email,
             "role": self.role,
             "is_admin": self.is_admin(),
+            "garden_sprite": self.garden_sprite,  # included so the garden page can fetch it
         }
         return data
         
-    # CRUD update: updates user fields
-    # returns self
+    # CRUD update
     def update(self, inputs):
         if not isinstance(inputs, dict):
             return self
@@ -302,6 +316,9 @@ class User(db.Model, UserMixin):
             self.set_password(inputs["password"])
         if inputs.get("role"):
             self._role = inputs["role"]
+        # Accept garden_sprite updates — sent by the garden page after the user picks
+        if inputs.get("garden_sprite") is not None:
+            self.garden_sprite = inputs["garden_sprite"]
 
         try:
             db.session.commit()
@@ -310,8 +327,7 @@ class User(db.Model, UserMixin):
             return None
         return self
     
-    # CRUD delete: remove self
-    # None
+    # CRUD delete
     def delete(self):
         try:
             db.session.delete(self)
@@ -339,53 +355,31 @@ class User(db.Model, UserMixin):
         db.session.commit()
         
     def add_section(self, section):
-        # Query for the section using the provided abbreviation
         found = any(s.id == section.id for s in self.sections)
-        
-        # Check if the section was found
         if not found:
-            # Add the section to the user's sections
             user_section = UserSection(user=self, section=section)
             db.session.add(user_section)
-            
-            # Commit the changes to the database
             db.session.commit()
         else:
-            # Handle the case where the section exists
             print("Section with abbreviation '{}' exists.".format(section._abbreviation))
-        # update kasm group membership
         if self.kasm_server_needed:
             KasmUser().post_groups(self.uid, [section.abbreviation])
         return self
     
     def add_sections(self, sections):
-        """
-        Add multiple sections to the user's profile.
-
-        :param sections: A list of section abbreviations to be added.
-        :return: The user object with the added sections, or None if any section is not found.
-        """
-        # Iterate over each section abbreviation provided
         for section in sections:
-            # Query the Section model to find the section object by its abbreviation
             section_obj = Section.query.filter_by(_abbreviation=section).first()
-            # If the section is not found, return None
             if not section_obj:
                 return None
-            # Add the found section object to the user's profile
             self.add_section(section_obj)
-        # Return the user object with the added sections
         return self
         
     def read_sections(self):
         """Reads the sections associated with the user."""
         sections = []
-        # The user_sections_rel backref provides access to the many-to-many relationship data 
         if self.user_sections_rel:
             for user_section in self.user_sections_rel:
-                # This user_section backref "row" can be used to access section methods 
                 section_data = user_section.section.read()
-                # Extract the year from the relationship data  
                 section_data['year'] = user_section.year  
                 sections.append(section_data)
         return {"sections": sections} 
@@ -393,97 +387,69 @@ class User(db.Model, UserMixin):
     def read_personas(self):
         """Reads the personas associated with the user."""
         personas = []
-        # Use the user_personas_rel backref to avoid N+1 queries
-        # This data is already loaded via lazy='subquery' on the relationship
         if hasattr(self, 'user_personas_rel') and self.user_personas_rel:
             for user_persona in self.user_personas_rel:
                 personas.append(user_persona.read())
         return {"personas": personas}
     
     def update_section(self, section_data):
-        """
-        Updates the year enrolled for a given section.
-
-        :param section_data: A dictionary containing the section's abbreviation and the new year.
-        :return: A boolean indicating if the update was successful.
-        """
         abbreviation = section_data.get("abbreviation", None)
-        year = int(section_data.get("year", default_year()))  # Convert year to integer, default to 0 if not found
-
-        # Find the user_section that matches the provided abbreviation through the user_sections_rel backref
+        year = int(section_data.get("year", default_year()))
         section = next(
             (s for s in self.user_sections_rel if s.section.abbreviation == abbreviation),
             None
         )
-
         if section:
-            # Update the year for the found section
             section.year = year
             db.session.commit()
-            return True  # Update successful
+            return True
         else:
-            return False  # Section not found
+            return False
     
     def remove_sections(self, section_abbreviations):
-        """
-        Remove sections based on provided abbreviations.
-
-        :param section_abbreviations: A list of section abbreviations to be removed.
-        :return: True if all sections are removed successfully, False otherwise.
-        """
         try:
-            # Iterate over each abbreviation in the provided list
             for abbreviation in section_abbreviations:
-                # Find the section matching the current abbreviation
                 section = next((section for section in self.sections if section.abbreviation == abbreviation), None)
                 if section:
-                    # If the section is found, remove it from the list of sections
                     self.sections.remove(section)
                 else:
-                    # If the section is not found, raise a ValueError
                     raise ValueError(f"Section with abbreviation '{abbreviation}' not found.")
             db.session.commit()
             return True
         except ValueError as e:
-            # Roll back the transaction if a ValueError is encountered
             db.session.rollback()
-            print(e)  # Log the specific abbreviation error
+            print(e)
             return False
         except Exception as e:
-            # Roll back the transaction if any other exception is encountered
             db.session.rollback()
-            print(f"Unexpected error removing sections: {e}") # Log the unexpected error
+            print(f"Unexpected error removing sections: {e}")
             return False
         
     def set_uid(self, new_uid=None):
-        """
-        Update the user's directory based on the new UID provided.
-
-        :param new_uid: Optional new UID to update the user's directory.
-        :return: The updated user object.
-        """
-        # Store the old UID for later comparison
         old_uid = self._uid
-        # Update the UID if a new one is provided
         if new_uid and new_uid != self._uid:
             self._uid = new_uid
-            # Commit the UID change to the database
             db.session.commit()
-
-        # If the UID has changed, update the directory name
         if old_uid != self._uid:
             old_path = os.path.join(current_app.config['UPLOAD_FOLDER'], old_uid)
             new_path = os.path.join(current_app.config['UPLOAD_FOLDER'], self._uid)
             if os.path.exists(old_path):
                 os.rename(old_path, new_path)
 
-"""Database Creation and Testing """
 
-# Builds working data set for testing
+""" Database Creation and Testing """
+
+# Full sprite list matching the garden frontend
+GARDEN_SPRITES = [
+    '🌸','🌺','🌻','🌷','🌼','🦋','🐝','🐞','🐛','🦗',
+    '🍀','🌿','🪴','🌱','🍃','🐢','🦔','🐇','🦜','🌙'
+]
+
 def initUsers():
     with app.app_context():
         db.create_all()
 
+        # create() auto-assigns a sprite to each user via _auto_assign_sprite()
         u1 = User(name=app.config['ADMIN_USER'], uid=app.config['ADMIN_UID'], password=app.config['ADMIN_PASSWORD'], role="Admin")
         u2 = User(name=app.config['MY_NAME'], uid=app.config['MY_UID'], password=app.config['MY_PASSWORD'], role=app.config['MY_ROLE'])
 
@@ -493,3 +459,38 @@ def initUsers():
             except IntegrityError:
                 db.session.remove()
                 print(f"Records exist or duplicate: {user.uid}")
+
+def assign_sprite(uid):
+    """
+    Assign the next available sprite to a user who does not yet have one.
+    Called after a new user signs up and confirms their sprite on the garden page.
+    If all sprites are taken, cycles back to the beginning.
+
+    :param uid: The uid of the user to assign a sprite to.
+    :return: The assigned sprite emoji string, or None if user not found.
+    """
+    with app.app_context():
+        user = User.query.filter_by(_uid=uid).first()
+        if not user:
+            return None
+
+        # If user already has a sprite, return it without overwriting
+        if user._garden_sprite:
+            return user._garden_sprite
+
+        # Count how many users already have each sprite to find the least-used one
+        # This distributes sprites evenly rather than always starting from index 0
+        from sqlalchemy import func
+        used_counts = {sprite: 0 for sprite in GARDEN_SPRITES}
+        results = db.session.query(User._garden_sprite, func.count(User._garden_sprite)) \
+                            .filter(User._garden_sprite.isnot(None)) \
+                            .group_by(User._garden_sprite).all()
+        for sprite, count in results:
+            if sprite in used_counts:
+                used_counts[sprite] = count
+
+        # Pick the sprite with the lowest usage count
+        chosen = min(used_counts, key=used_counts.get)
+        user._garden_sprite = chosen
+        db.session.commit()
+        return chosen
