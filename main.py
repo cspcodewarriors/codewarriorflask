@@ -27,6 +27,8 @@ from hacks.joke import joke_api
 from api.post import post_api
 from api.sip_events_api import sip_events_api
 from api.blog import blog_api
+from api.blog_image import blog_image_api
+#from api.announcement import announcement_api ##temporary revert
 
 # database Initialization functions
 from model.user import User, initUsers
@@ -66,10 +68,12 @@ app.register_blueprint(student_api)
 app.register_blueprint(study_api)
 app.register_blueprint(classroom_api)
 app.register_blueprint(feedback_api)
-app.register_blueprint(data_export_import_api)
-app.register_blueprint(joke_api)
-app.register_blueprint(post_api)
-app.register_blueprint(sip_events_api)
+app.register_blueprint(data_export_import_api)  # Register the data export/import API
+app.register_blueprint(joke_api)  # Register the joke API blueprint
+app.register_blueprint(post_api)  # Register the social media post API
+app.register_blueprint(sip_events_api)  # Register the SIP calendar events API
+app.register_blueprint(blog_image_api)
+# app.register_blueprint(announcement_api) ##temporary revert
 
 # Jokes file initialization
 with app.app_context():
