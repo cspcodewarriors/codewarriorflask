@@ -31,6 +31,7 @@ from api.blog import blog_api
 # database Initialization functions
 from model.user import User, initUsers
 from model.user import Section
+from model.kasm import KasmUtils
 from model.github import GitHubUser
 from model.feedback import Feedback
 from api.analytics import get_date_range
@@ -153,6 +154,20 @@ def sections():
 def persona():
     personas = Persona.query.all()
     return render_template("persona.html", personas=personas)
+
+@app.route('/kasm/users')
+@login_required
+def kasm_users():
+    config, error = KasmUtils.get_authenticated_config()
+    if error:
+        users = []
+    else:
+        users, error = KasmUtils.get_users(config)
+        if error:
+            users = []
+        else:
+            users = users or []
+    return render_template("kasm_users.html", users=users)
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
