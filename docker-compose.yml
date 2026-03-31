@@ -1,3 +1,4 @@
+                                     
 version: '3'
 services:
         web:
@@ -9,12 +10,4 @@ services:
                         - "8427:8427"
                 volumes:
                         - ./instance:/app/instance
-                restart: unless-stopped
-
-        socketio:
-                image: socket_open
-                build: ./socket
-                ports:
-                        - "8500:8500"
-    
                 restart: unless-stopped
