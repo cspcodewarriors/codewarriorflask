@@ -265,8 +265,8 @@ class User(db.Model, UserMixin):
             if inputs:
                 self.update(inputs)
             # Auto-assign a garden sprite if not already set
-            if not self._garden_sprite:
-                self._auto_assign_sprite()
+#            if not self._garden_sprite:
+#                self._auto_assign_sprite()
             return self
         except IntegrityError:
             db.session.rollback()
