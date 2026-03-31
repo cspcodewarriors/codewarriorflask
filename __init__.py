@@ -42,6 +42,7 @@ cors = CORS(
        'https://open-coding-society.github.io',
        'https://pages.opencodingsociety.com',
        'https://cspcodewarriors.github.io',
+       'https://sip.opencodingsociety.com',
    ],
    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
