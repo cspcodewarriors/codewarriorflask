@@ -9,7 +9,8 @@ PERSONA_CATEGORIES = [
     'student',      # Computer Science student learning archetypes (technologist, scrummer, planner, closer)
     'social',       # Social interest archetypes (gamer, musician, athlete, explorer, foodie, artist)
     'achievement',  # Achievement-oriented archetypes (builder, innovator, competitor, mentor)
-    'fantasy'       # Superhero/superpower archetypes (speed, strength, intelligence, flight)
+    'fantasy',      # Superhero/superpower archetypes (speed, strength, intelligence, flight)
+    'community',    # Soroptimist community archetypes (breadwinner, seeker, dreamer, achiever, advocate, bridge)
 ]
 
 class UserPersona(db.Model):
@@ -601,7 +602,226 @@ def initPersonas():
             }
         )
         
-        personas = [p1, p2, p3, p4, s1, s2, s3, s4, a1, a2, a3, a4, f1, f2, f3, f4]
+        """Soroptimist community personas — women and community members served by SIP programs"""
+
+        # Breadwinner — Live Your Dream
+        c1 = Persona(
+            _alias='rosa',
+            _category='community',
+            _bio_map={
+                'title': 'Breadwinner',
+                'description': 'I am the backbone of my family. As the primary financial supporter, I work tirelessly to provide stability while quietly carrying the weight of my own deferred dreams. I know that with the right educational opportunity or career support, I could change everything — not just for me, but for everyone who depends on me.',
+                'archetype': ['Resilient', 'Self-sacrificing', 'Determined'],
+                'personality_type': ['Provider', 'Overcomer'],
+                'program': 'live-your-dream'
+            },
+            _empathy_map={
+                'says': [
+                    'I do it all for my family.',
+                    'If I could just finish my degree, everything would change.',
+                    'I don\'t have time to think about what I want — I have to think about what we need.'
+                ],
+                'thinks': [
+                    'There has to be a way to get ahead without losing everything.',
+                    'My children deserve better than I had. I will make sure they get it.',
+                    'I am more than my circumstances — I just need a door to open.'
+                ],
+                'feels': [
+                    'Exhausted but unwilling to stop.',
+                    'Quietly hopeful that things can improve.',
+                    'Grateful for any hand extended in her direction.'
+                ],
+                'does': [
+                    'Works one or more jobs while raising children.',
+                    'Researches scholarships and educational programs late at night.',
+                    'Puts family needs ahead of her own education and career goals.',
+                    'Reaches out to support organizations when she finally has no other choice.'
+                ]
+            }
+        )
+
+        # Seeker — Transitional Housing
+        c2 = Persona(
+            _alias='haven',
+            _category='community',
+            _bio_map={
+                'title': 'Seeker',
+                'description': 'I am in transition — navigating instability and looking for a safe foundation to rebuild from. Whether facing housing insecurity, a sudden loss, or an unsafe situation, I am resilient and resourceful. I am not defined by my crisis; I am defined by my will to move through it.',
+                'archetype': ['Resilient', 'Courageous', 'Resourceful'],
+                'personality_type': ['Survivor', 'Builder'],
+                'program': 'transitional-housing'
+            },
+            _empathy_map={
+                'says': [
+                    'I just need somewhere safe to land.',
+                    'This is temporary. I know I can get back on my feet.',
+                    'I don\'t want charity — I want a chance.'
+                ],
+                'thinks': [
+                    'Stability is not a luxury. It is the foundation of everything.',
+                    'I have survived this far. I can survive what comes next.',
+                    'My children should not have to carry this fear.'
+                ],
+                'feels': [
+                    'Vulnerable but fiercely protective of her family.',
+                    'Cautious about asking for help but aware she needs it.',
+                    'Relieved when she finds a community that meets her without judgment.'
+                ],
+                'does': [
+                    'Navigates emergency housing resources and waitlists.',
+                    'Protects her children from understanding the full weight of the situation.',
+                    'Looks for work and stability simultaneously.',
+                    'Connects with local shelters, churches, and community organizations.'
+                ]
+            }
+        )
+
+        # Dreamer — Dream It, Be It
+        c3 = Persona(
+            _alias='luna',
+            _category='community',
+            _bio_map={
+                'title': 'Dreamer',
+                'description': 'I am a young woman full of potential, standing at the edge of my future but unsure how to step into it. I have ambition and drive, but I have never had a mentor who looked like me or believed in me first. I need someone to show me what is possible — and I will run with it.',
+                'archetype': ['Ambitious', 'Curious', 'Receptive'],
+                'personality_type': ['Emerging Leader', 'Learner'],
+                'program': 'dream-it-be-it'
+            },
+            _empathy_map={
+                'says': [
+                    'I want to do something that matters — I just don\'t know what yet.',
+                    'I\'ve never met anyone in that field who looks like me.',
+                    'I work hard. I just wish someone would notice.'
+                ],
+                'thinks': [
+                    'Maybe I\'m not smart enough for that kind of career.',
+                    'If someone would just give me a chance, I would prove myself.',
+                    'I see others moving forward and I wonder why I feel stuck.'
+                ],
+                'feels': [
+                    'Excited about the future but intimidated by the unknown.',
+                    'Hungry for mentorship and real-world exposure.',
+                    'Energized when someone treats her ambition as valid.'
+                ],
+                'does': [
+                    'Works hard in school but lacks career direction.',
+                    'Looks up careers and women leaders online for inspiration.',
+                    'Jumps at any opportunity to connect with a professional.',
+                    'Pays close attention when women in careers speak about their paths.'
+                ]
+            }
+        )
+
+        # Achiever — Abraxas Scholarship
+        c4 = Persona(
+            _alias='merit',
+            _category='community',
+            _bio_map={
+                'title': 'Achiever',
+                'description': 'I have shown up — for my studies, my community, and everyone around me. I balance academic excellence with genuine service and I do it without recognition. I believe the next generation of leaders is shaped by those who are invested in, and I am ready to be that investment.',
+                'archetype': ['Disciplined', 'Service-oriented', 'Principled'],
+                'personality_type': ['Scholar', 'Contributor'],
+                'program': 'abraxas-scholarship'
+            },
+            _empathy_map={
+                'says': [
+                    'I give back because it is the right thing to do.',
+                    'I want to earn this — not be handed it.',
+                    'I hope my work speaks for itself.'
+                ],
+                'thinks': [
+                    'Hard work and integrity should be recognized.',
+                    'If I open one door for myself, I can open more for others.',
+                    'A scholarship would change not just my future, but my family\'s.'
+                ],
+                'feels': [
+                    'Proud of her achievements but humble in how she carries them.',
+                    'Motivated by the idea that excellence plus community is a powerful combination.',
+                    'Hopeful that the right organization will see what she has built.'
+                ],
+                'does': [
+                    'Maintains strong grades while volunteering regularly.',
+                    'Writes thoughtful scholarship applications and personal statements.',
+                    'Mentors younger students in her community.',
+                    'Looks for programs that value both achievement and service.'
+                ]
+            }
+        )
+
+        # Advocate — STAT!
+        c5 = Persona(
+            _alias='voice',
+            _category='community',
+            _bio_map={
+                'title': 'Advocate',
+                'description': 'I have seen injustice — maybe lived it — and I refuse to look away. Human trafficking is not an abstract issue to me; it is personal, it is local, and it demands a response. I speak up, show up, and push others to open their eyes to what is happening in our own communities.',
+                'archetype': ['Fierce', 'Compassionate', 'Unwavering'],
+                'personality_type': ['Protector', 'Activist'],
+                'program': 'stat'
+            },
+            _empathy_map={
+                'says': [
+                    'This is happening here. In our community. Right now.',
+                    'Silence is not neutral — it is complicit.',
+                    'I speak for those who cannot speak for themselves.'
+                ],
+                'thinks': [
+                    'Awareness is the first weapon. Education is the second.',
+                    'Every person who knows the signs can save a life.',
+                    'I was changed by what I saw. Others need to be changed too.'
+                ],
+                'feels': [
+                    'Urgently driven by the scale of the problem.',
+                    'Empowered when communities come together to act.',
+                    'Angry at systems that enable exploitation and determined to change them.'
+                ],
+                'does': [
+                    'Attends and organizes awareness events and trainings.',
+                    'Shares information on trafficking warning signs with her network.',
+                    'Partners with local organizations working on prevention and recovery.',
+                    'Advocates for policy changes that protect vulnerable populations.'
+                ]
+            }
+        )
+
+        # Bridge — Colegio La Esperanza
+        c6 = Persona(
+            _alias='solana',
+            _category='community',
+            _bio_map={
+                'title': 'Bridge',
+                'description': 'I carry two worlds inside me. Whether through heritage, travel, or deep conviction, I feel the pull toward underserved communities in Latin America. I believe education is the most transformative gift and that geography should never determine a child\'s potential. I want to be the connection between those who have resources and those who need them.',
+                'archetype': ['Empathetic', 'Cross-cultural', 'Mission-driven'],
+                'personality_type': ['Connector', 'Servant Leader'],
+                'program': 'colegio-la-esperanza'
+            },
+            _empathy_map={
+                'says': [
+                    'A child\'s zip code should not determine their future.',
+                    'I have seen what happens when education reaches a community — everything changes.',
+                    'We have so much. They need so little to transform everything.'
+                ],
+                'thinks': [
+                    'Education is not charity. It is the restoration of what was taken.',
+                    'I can be the bridge between opportunity and need.',
+                    'My connection to this community is a responsibility, not just a feeling.'
+                ],
+                'feels': [
+                    'Deeply moved by the resilience of communities with so little.',
+                    'Called to serve across cultural and geographic boundaries.',
+                    'Fulfilled when she sees resources reach children who have been overlooked.'
+                ],
+                'does': [
+                    'Supports international education initiatives through donations and volunteering.',
+                    'Translates — both language and culture — for organizations serving Latino communities.',
+                    'Travels to or maintains connections with underserved communities in Mexico.',
+                    'Advocates for global equity in education within her local community.'
+                ]
+            }
+        )
+
+        personas = [p1, p2, p3, p4, s1, s2, s3, s4, a1, a2, a3, a4, f1, f2, f3, f4,
+                    c1, c2, c3, c4, c5, c6]
         
         for persona in personas:
             try:

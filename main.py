@@ -28,6 +28,7 @@ from api.post import post_api
 from api.sip_events_api import sip_events_api
 from api.blog import blog_api
 from api.blog_image import blog_image_api
+from api.contact import sip_contact_bp
 #from api.announcement import announcement_api ##temporary revert
 
 # database Initialization functions
@@ -73,6 +74,7 @@ app.register_blueprint(joke_api)  # Register the joke API blueprint
 app.register_blueprint(post_api)  # Register the social media post API
 app.register_blueprint(sip_events_api)  # Register the SIP calendar events API
 app.register_blueprint(blog_image_api)
+app.register_blueprint(sip_contact_bp)  # Register the SIP contact form API
 # app.register_blueprint(announcement_api) ##temporary revert
 
 # Jokes file initialization
