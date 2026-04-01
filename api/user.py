@@ -29,7 +29,17 @@ class UserAPI:
             user_data['is_teacher'] = current_user.is_teacher()
             return jsonify(user_data)
     
-    class _BULK(Resource):  # Users API operation for Create, Read, Update, Delete 
+    class _BULK(Resource):  # Users API operation for Create, Read, Update, Delete
+        #@token_required()
+        def get(self):
+            """Return all users (garden sprites only, for the garden page)."""
+            users = User.query.all()
+            return jsonify([
+                {"uid": u.uid, "garden_sprite": u.garden_sprite}
+                for u in users
+            ])
+
+        #@token_required()
         def post(self):
             ''' Handle bulk user creation by sending POST requests to the single user endpoint '''
             users = request.get_json()
