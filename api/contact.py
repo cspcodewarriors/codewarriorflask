@@ -1,12 +1,37 @@
+"""
+api/sip_contact.py
+
+REST API for Soroptimist International of Poway contact-form submissions.
+Follows the same pattern as blog_api.py — flask_restful Resources with
+@token_required from api.authorize.  Auth uses the JWT cookie (same as
+the blog page), not an Authorization header.
+
+Endpoints
+─────────────────────────────────────────────────────────────────────────
+POST   /api/sip/contact/involved     submit Get Involved form  (any login)
+POST   /api/sip/contact/help         submit Get Help form      (any login)
+GET    /api/sip/contact              list submissions           (Admin)
+GET    /api/sip/contact/<id>         single submission          (Admin)
+PATCH  /api/sip/contact/<id>         update status              (Admin)
+DELETE /api/sip/contact/<id>         hard delete                (Admin)
+
+Registration — add to __init__.py:
+    from api.sip_contact import sip_contact_api
+    app.register_blueprint(sip_contact_api)
+"""
+
 from datetime import datetime, timezone
-from functools import wraps
 
 from flask import Blueprint, request, jsonify, g
+from flask_restful import Api, Resource
+
+from api.authorize import token_required
 from __init__ import db
 from model.contact import SipContactSubmission
 
 
-sip_contact_bp = Blueprint("sip_contact", __name__)
+sip_contact_api = Blueprint('sip_contact_api', __name__, url_prefix='/api')
+api = Api(sip_contact_api)
 
 # ── Allowed values ────────────────────────────────────────────────────────────
 
@@ -23,193 +48,162 @@ HELP_SELECTIONS = {
 VALID_STATUSES = {"new", "in_progress", "resolved"}
 
 
-# ── Auth helpers ──────────────────────────────────────────────────────────────
+# ── Resources ─────────────────────────────────────────────────────────────────
 
-def _current_user():
-    """Return the current user from g (populated by your existing auth layer)."""
-    return getattr(g, "current_user", None)
+class SipContactAPI:
 
+    class _Involved(Resource):
+        """
+        POST /api/sip/contact/involved
+        Body: { "selection": "volunteer" | "member", "message": "..." }
+        uid is resolved from the JWT cookie inside SipContactSubmission.__init__()
+        — same pattern as BlogPost.__init__() resolving author from cookie.
+        """
+        @token_required()
+        def post(self):
+            body = request.get_json(silent=True) or {}
 
-def login_required(f):
-    """Decorator: reject unauthenticated requests with 401."""
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if _current_user() is None:
-            return jsonify({"message": "Authentication required."}), 401
-        return f(*args, **kwargs)
-    return wrapper
+            selection = body.get("selection", "").strip().lower()
+            if selection not in INVOLVED_SELECTIONS:
+                return {
+                    "message": f"selection must be one of: {', '.join(sorted(INVOLVED_SELECTIONS))}."
+                }, 422
 
+            try:
+                submission = SipContactSubmission(
+                    form_type = "involved",
+                    selection = selection,
+                    message   = body.get("message", "").strip() or None,
+                )
+            except ValueError as e:
+                return {"message": str(e)}, 401
 
-def admin_required(f):
-    """Decorator: reject non-admins with 403."""
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        user = _current_user()
-        if user is None:
-            return jsonify({"message": "Authentication required."}), 401
-        if not getattr(user, "is_admin", False):
-            return jsonify({"message": "Admin access required."}), 403
-        return f(*args, **kwargs)
-    return wrapper
+            result = submission.create()
+            if not result:
+                return {"message": "Failed to save submission."}, 400
 
+            return jsonify(result.read())
 
-# ── Submission endpoints ──────────────────────────────────────────────────────
+    class _Help(Resource):
+        """
+        POST /api/sip/contact/help
+        Body: { "selection": "<program-slug>", "message": "..." }
+        uid is resolved from the JWT cookie inside SipContactSubmission.__init__().
+        """
+        @token_required()
+        def post(self):
+            body = request.get_json(silent=True) or {}
 
-@sip_contact_bp.route("/api/sip/contact/involved", methods=["POST"])
-@login_required
-def submit_involved():
-    """
-    Submit the 'Get Involved' form.
+            selection = body.get("selection", "").strip().lower()
+            if selection not in HELP_SELECTIONS:
+                return {
+                    "message": f"selection must be one of: {', '.join(sorted(HELP_SELECTIONS))}."
+                }, 422
 
-    Body: { "selection": "volunteer" | "member", "message": "..." }
-    uid is taken from the authenticated session.
-    """
-    data = request.get_json(silent=True) or {}
+            try:
+                submission = SipContactSubmission(
+                    form_type = "help",
+                    selection = selection,
+                    message   = body.get("message", "").strip() or None,
+                )
+            except ValueError as e:
+                return {"message": str(e)}, 401
 
-    selection = data.get("selection", "").strip().lower()
-    if selection not in INVOLVED_SELECTIONS:
-        return jsonify({
-            "message": f"selection must be one of: {', '.join(sorted(INVOLVED_SELECTIONS))}."
-        }), 422
+            result = submission.create()
+            if not result:
+                return {"message": "Failed to save submission."}, 400
 
-    user = _current_user()
-    submission = SipContactSubmission(
-        uid       = str(getattr(user, "uid", None) or getattr(user, "id", "")),
-        form_type = "involved",
-        selection = selection,
-        message   = data.get("message", "").strip() or None,
-    )
-    db.session.add(submission)
-    db.session.commit()
+            return jsonify(result.read())
 
-    return jsonify(submission.to_dict()), 201
+    class _List(Resource):
+        """
+        GET /api/sip/contact
+        Paginated list with optional filters (Admin only).
 
+        Query params:
+          form_type  – 'involved' | 'help'
+          status     – 'new' | 'in_progress' | 'resolved'
+          page       – integer (default 1)
+          per_page   – integer 1–100 (default 25)
+        """
+        @token_required("Admin")
+        def get(self):
+            query = SipContactSubmission.query
 
-@sip_contact_bp.route("/api/sip/contact/help", methods=["POST"])
-@login_required
-def submit_help():
-    """
-    Submit the 'Get Help' form.
+            form_type = request.args.get("form_type", "").strip().lower()
+            if form_type in ("involved", "help"):
+                query = query.filter_by(form_type=form_type)
 
-    Body: { "selection": "<program-slug>", "message": "..." }
-    uid is taken from the authenticated session.
-    """
-    data = request.get_json(silent=True) or {}
+            status = request.args.get("status", "").strip().lower()
+            if status in VALID_STATUSES:
+                query = query.filter_by(status=status)
 
-    selection = data.get("selection", "").strip().lower()
-    if selection not in HELP_SELECTIONS:
-        return jsonify({
-            "message": f"selection must be one of: {', '.join(sorted(HELP_SELECTIONS))}."
-        }), 422
+            query = query.order_by(SipContactSubmission.created_at.desc())
 
-    user = _current_user()
-    submission = SipContactSubmission(
-        uid       = str(getattr(user, "uid", None) or getattr(user, "id", "")),
-        form_type = "help",
-        selection = selection,
-        message   = data.get("message", "").strip() or None,
-    )
-    db.session.add(submission)
-    db.session.commit()
+            try:
+                page     = max(1, int(request.args.get("page", 1)))
+                per_page = min(100, max(1, int(request.args.get("per_page", 25))))
+            except ValueError:
+                return {"message": "page and per_page must be integers."}, 400
 
-    return jsonify(submission.to_dict()), 201
+            pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
+            return {
+                "items":    [s.read() for s in pagination.items],
+                "total":    pagination.total,
+                "page":     pagination.page,
+                "per_page": pagination.per_page,
+                "pages":    pagination.pages,
+            }, 200
 
-# ── Admin endpoints ───────────────────────────────────────────────────────────
+    class _Detail(Resource):
+        """
+        GET    /api/sip/contact/<id>  fetch one submission  (Admin)
+        PATCH  /api/sip/contact/<id>  update status         (Admin)
+        DELETE /api/sip/contact/<id>  hard delete           (Admin)
+        """
+        @token_required("Admin")
+        def get(self, submission_id):
+            sub = db.session.get(SipContactSubmission, submission_id)
+            if sub is None:
+                return {"message": "Submission not found."}, 404
+            return jsonify(sub.read())
 
-@sip_contact_bp.route("/api/sip/contact", methods=["GET"])
-@admin_required
-def list_contacts():
-    """
-    Paginated list with optional filters.
+        @token_required("Admin")
+        def patch(self, submission_id):
+            sub = db.session.get(SipContactSubmission, submission_id)
+            if sub is None:
+                return {"message": "Submission not found."}, 404
 
-    Query params:
-      form_type  – 'involved' | 'help'
-      status     – 'new' | 'in_progress' | 'resolved'
-      page       – integer (default 1)
-      per_page   – integer 1–100 (default 25)
-    """
-    query = SipContactSubmission.query
+            body       = request.get_json(silent=True) or {}
+            new_status = body.get("status", "").strip().lower()
 
-    form_type = request.args.get("form_type", "").strip().lower()
-    if form_type in ("involved", "help"):
-        query = query.filter_by(form_type=form_type)
+            if new_status and new_status not in VALID_STATUSES:
+                return {
+                    "message": f"status must be one of: {', '.join(sorted(VALID_STATUSES))}."
+                }, 422
 
-    status = request.args.get("status", "").strip().lower()
-    if status in VALID_STATUSES:
-        query = query.filter_by(status=status)
+            if new_status:
+                sub.status = new_status
 
-    query = query.order_by(SipContactSubmission.created_at.desc())
+            sub.reviewed_by = g.current_user._uid
+            sub.updated_at  = datetime.now(timezone.utc)
+            db.session.commit()
 
-    try:
-        page     = max(1, int(request.args.get("page", 1)))
-        per_page = min(100, max(1, int(request.args.get("per_page", 25))))
-    except ValueError:
-        return jsonify({"message": "page and per_page must be integers."}), 400
+            return jsonify(sub.read())
 
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        @token_required("Admin")
+        def delete(self, submission_id):
+            sub = db.session.get(SipContactSubmission, submission_id)
+            if sub is None:
+                return {"message": "Submission not found."}, 404
 
-    return jsonify({
-        "items":    [s.to_dict() for s in pagination.items],
-        "total":    pagination.total,
-        "page":     pagination.page,
-        "per_page": pagination.per_page,
-        "pages":    pagination.pages,
-    }), 200
-
-
-@sip_contact_bp.route("/api/sip/contact/<int:submission_id>", methods=["GET"])
-@admin_required
-def get_contact(submission_id):
-    """Fetch one submission by ID."""
-    sub = db.session.get(SipContactSubmission, submission_id)
-    if sub is None:
-        return jsonify({"message": "Submission not found."}), 404
-    return jsonify(sub.to_dict()), 200
-
-
-@sip_contact_bp.route("/api/sip/contact/<int:submission_id>", methods=["PATCH"])
-@admin_required
-def update_contact(submission_id):
-    """
-    Update the status of a submission.
-
-    Body: { "status": "in_progress" | "resolved" | "new" }
-    """
-    sub = db.session.get(SipContactSubmission, submission_id)
-    if sub is None:
-        return jsonify({"message": "Submission not found."}), 404
-
-    data       = request.get_json(silent=True) or {}
-    new_status = data.get("status", "").strip().lower()
-
-    if new_status and new_status not in VALID_STATUSES:
-        return jsonify({
-            "message": f"status must be one of: {', '.join(sorted(VALID_STATUSES))}."
-        }), 422
-
-    if new_status:
-        sub.status = new_status
-
-    user = _current_user()
-    if user:
-        sub.reviewed_by = str(getattr(user, "uid", None) or getattr(user, "id", ""))
-
-    sub.updated_at = datetime.now(timezone.utc)
-    db.session.commit()
-
-    return jsonify(sub.to_dict()), 200
+            sub.delete()
+            return {"message": "Submission deleted.", "id": submission_id}, 200
 
 
-@sip_contact_bp.route("/api/sip/contact/<int:submission_id>", methods=["DELETE"])
-@admin_required
-def delete_contact(submission_id):
-    """Permanently delete a submission."""
-    sub = db.session.get(SipContactSubmission, submission_id)
-    if sub is None:
-        return jsonify({"message": "Submission not found."}), 404
-
-    db.session.delete(sub)
-    db.session.commit()
-
-    return jsonify({"message": "Submission deleted.", "id": submission_id}), 200
+# ── Register routes ───────────────────────────────────────────────────────────
+api.add_resource(SipContactAPI._Involved, '/sip/contact/involved')
+api.add_resource(SipContactAPI._Help,     '/sip/contact/help')
+api.add_resource(SipContactAPI._List,     '/sip/contact')
+api.add_resource(SipContactAPI._Detail,   '/sip/contact/<int:submission_id>')
