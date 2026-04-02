@@ -1,21 +1,3 @@
-"""
-model/sip_contact.py
-
-SQLAlchemy model for Soroptimist International of Poway contact-form
-submissions.
-
-Only stores what the forms actually collect:
-  - form_type   'involved' | 'help'
-  - selection   dropdown value
-  - message     optional free text
-
-uid is stamped from the JWT cookie at save time (same pattern as BlogPost),
-so personal info is never duplicated — it lives on the User record.
-
-Table: sip_contact_submissions
-DB:    user_management.db
-"""
-
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from flask import request as flask_request, current_app

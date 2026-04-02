@@ -1,11 +1,4 @@
 """
-api/sip_contact.py
-
-REST API for Soroptimist International of Poway contact-form submissions.
-Follows the same pattern as blog_api.py — flask_restful Resources with
-@token_required from api.authorize.  Auth uses the JWT cookie (same as
-the blog page), not an Authorization header.
-
 Endpoints
 ─────────────────────────────────────────────────────────────────────────
 POST   /api/sip/contact/involved     submit Get Involved form  (any login)
@@ -14,10 +7,6 @@ GET    /api/sip/contact              list submissions           (Admin)
 GET    /api/sip/contact/<id>         single submission          (Admin)
 PATCH  /api/sip/contact/<id>         update status              (Admin)
 DELETE /api/sip/contact/<id>         hard delete                (Admin)
-
-Registration — add to __init__.py:
-    from api.sip_contact import sip_contact_api
-    app.register_blueprint(sip_contact_api)
 """
 
 from datetime import datetime, timezone
