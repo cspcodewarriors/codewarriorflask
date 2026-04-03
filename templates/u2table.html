@@ -16,6 +16,9 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-blog" data-bs-toggle="tab" data-bs-target="#panel-blog" type="button" role="tab">Blog Posts</button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-contact" data-bs-toggle="tab" data-bs-target="#panel-contact" type="button" role="tab">Contact Messages</button>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -120,6 +123,45 @@
                     </tr>
                 </thead>
                 <tbody id="blog-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════
+             CONTACT MESSAGES TAB  (sip_contact_submissions)
+             ═══════════════════════════════════════════════════ -->
+        <div class="tab-pane fade" id="panel-contact" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Contact Messages</h4>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" id="contact-filter-type" style="width:auto;">
+                        <option value="">All Types</option>
+                        <option value="involved">Get Involved</option>
+                        <option value="help">Get Help</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="contact-filter-status" style="width:auto;">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" id="contact-reload-btn">↻ Reload</button>
+                </div>
+            </div>
+            <table class="table table-striped table-sm" id="contactTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>UID</th>
+                        <th>Type</th>
+                        <th>Selection</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                        <th>Reviewed By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="contact-tbody"></tbody>
             </table>
         </div>
 
@@ -446,6 +488,105 @@ $(document).ready(function () {
     document.getElementById('tab-blog').addEventListener('shown.bs.tab', function () {
         if (!blogTable.data().count()) loadPosts();
     });
+
+
+    // ─── CONTACT MESSAGES TABLE ─────────────────────────────────
+    const SELECTION_LABELS = {
+        'volunteer':            '🙋 Volunteer',
+        'member':               '🤝 Become a Member',
+        'transitional-housing': '🏠 Transitional Housing',
+        'live-your-dream':      '🌟 Live Your Dream',
+        'dream-it-be-it':       '✨ Dream It, Be It',
+        'abraxas':              '🎓 Abraxas Scholarship',
+        'colegio':              '🌎 Colegio La Esperanza',
+        'stat':                 '🛡️ STAT!',
+    };
+
+    const STATUS_BADGES = {
+        'new':         '<span class="badge bg-danger">New</span>',
+        'in_progress': '<span class="badge bg-warning text-dark">In Progress</span>',
+        'resolved':    '<span class="badge bg-success">Resolved</span>',
+    };
+
+    const contactTable = $("#contactTable").DataTable({
+        columns: [
+            { data: 'id', width: '40px' },
+            { data: 'uid' },
+            { data: 'form_type', render: v => v === 'involved'
+                ? '<span class="badge bg-success">Get Involved</span>'
+                : '<span class="badge bg-primary">Get Help</span>' },
+            { data: 'selection', render: v => SELECTION_LABELS[v] || v },
+            { data: 'message', defaultContent: '<em class="text-muted">—</em>',
+              render: (v) => v ? `<span title="${v.replace(/"/g,'&quot;')}" style="max-width:220px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v}</span>` : '<em class="text-muted">—</em>' },
+            { data: 'status', render: v => STATUS_BADGES[v] || v },
+            { data: 'created_at', render: v => v ? v.replace('T',' ').slice(0,16) : '' },
+            { data: 'reviewed_by', defaultContent: '<em class="text-muted">—</em>' },
+            { data: null, orderable: false, render: (d, t, row) => `
+                <select class="form-select form-select-sm contact-status-select" data-id="${row.id}" style="width:auto;display:inline-block;">
+                    <option value="new"         ${row.status==='new'         ? 'selected':''}>New</option>
+                    <option value="in_progress" ${row.status==='in_progress' ? 'selected':''}>In Progress</option>
+                    <option value="resolved"    ${row.status==='resolved'    ? 'selected':''}>Resolved</option>
+                </select>
+                <button class="btn btn-sm btn-danger contact-del-btn ms-1" data-id="${row.id}">Delete</button>
+            ` }
+        ],
+        order: [[6, 'desc']],
+        pageLength: 25,
+    });
+
+    function loadContacts() {
+        const type   = document.getElementById('contact-filter-type').value;
+        const status = document.getElementById('contact-filter-status').value;
+        let url = '/api/sip/contact?per_page=100';
+        if (type)   url += `&form_type=${type}`;
+        if (status) url += `&status=${status}`;
+
+        fetch(url, { credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+                contactTable.clear();
+                contactTable.rows.add(data.items || []);
+                contactTable.draw();
+                bindContactButtons();
+            })
+            .catch(err => console.error('Contact load error:', err));
+    }
+
+    function bindContactButtons() {
+        document.querySelectorAll('.contact-status-select').forEach(sel => {
+            sel.addEventListener('change', function () {
+                fetch(`/api/sip/contact/${this.dataset.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ status: this.value })
+                })
+                .then(r => r.json())
+                .then(() => loadContacts())
+                .catch(() => alert('Error updating status.'));
+            });
+        });
+
+        document.querySelectorAll('.contact-del-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (!confirm('Delete this submission?')) return;
+                fetch(`/api/sip/contact/${this.dataset.id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                })
+                .then(() => loadContacts())
+                .catch(() => alert('Error deleting submission.'));
+            });
+        });
+    }
+
+    document.getElementById('tab-contact').addEventListener('shown.bs.tab', function () {
+        if (!contactTable.data().count()) loadContacts();
+    });
+
+    document.getElementById('contact-reload-btn').addEventListener('click', loadContacts);
+    document.getElementById('contact-filter-type').addEventListener('change', loadContacts);
+    document.getElementById('contact-filter-status').addEventListener('change', loadContacts);
 
 });
 </script>
