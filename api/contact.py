@@ -34,7 +34,7 @@ HELP_SELECTIONS = {
     "colegio",
 }
 
-VALID_STATUSES = {"new", "in_progress", "resolved"}
+VALID_STATUSES = {"new", "in_progress", "resolved", "approved", "declined"}
 
 
 # ── Resources ─────────────────────────────────────────────────────────────────
