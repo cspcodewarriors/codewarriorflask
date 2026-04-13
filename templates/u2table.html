@@ -2,171 +2,593 @@
 
 {% block body %}
 
-<div class="container mt-5">
-    <h1>User Management</h1>
+<div class="container mt-4">
+    <h1 class="mb-3">Admin Panel</h1>
 
-    <table class="table table-striped" id="userTable">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>UID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Profile Picture</th>
-                <th>Kasm Server Needed</th>
-                <th>Courses</th>
-                <th>Commits</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in user_data %}
-            {% if user.id == current_user.id or current_user.role == 'Admin' %}
-            <tr id="user-{{ user.id }}">
-                <td>{{ user.id }}</td>
-                <td>{{ user.uid }}</td>
-                <td>{{ user.name }}</td>
-                <td>{{ user.email }}</td>
-                <td>{{ user.role }}</td>
-                <td>
-                    {% if user.pfp %}
-                    <img src="{{ url_for('uploaded_file', filename=user.uid + '/' + user.pfp) }}" 
-                         alt="Profile Picture" 
-                         class="img-thumbnail" 
-                         style="width: 50px; height: 50px;">
-                    {% else %}
-                    <img src="{{ url_for('static', filename='assets/pythondb.png') }}" 
-                         alt="Default Profile Picture" 
-                         class="img-thumbnail" 
-                         style="width: 50px; height: 50px;">
+    <!-- Tab nav -->
+    <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-users" data-bs-toggle="tab" data-bs-target="#panel-users" type="button" role="tab">Users</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-events" data-bs-toggle="tab" data-bs-target="#panel-events" type="button" role="tab">SIP Events</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-blog" data-bs-toggle="tab" data-bs-target="#panel-blog" type="button" role="tab">Blog Posts</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-contact" data-bs-toggle="tab" data-bs-target="#panel-contact" type="button" role="tab">Contact Messages</button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ═══════════════════════════════════════════════════
+             USERS TAB  (matches user_management.db → users)
+             ═══════════════════════════════════════════════════ -->
+        <div class="tab-pane fade show active" id="panel-users" role="tabpanel">
+            <h4 class="mb-3">User Table</h4>
+            <table class="table table-striped table-sm" id="userTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>UID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Garden Sprite</th>
+                        <th>Personas</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in user_data %}
+                    {% if user.id == current_user.id or current_user.role == 'Admin' %}
+                    <tr id="user-{{ user.id }}">
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.uid }}</td>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.role }}</td>
+                        <td style="font-size:1.4rem; text-align:center;">{{ user.garden_sprite or '—' }}</td>
+                        <td>
+                            {% set sip_personas = user.personas | selectattr('_category', 'equalto', 'community') | list %}
+                            {% if sip_personas %}
+                                {% for p in sip_personas %}
+                                    <span class="badge" style="background:#003F87">{{ p._bio_map.title }}</span>{% if not loop.last %} {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-btn" data-id="{{ user.id }}">Edit</button>
+                            {% if current_user.role == 'Admin' %}
+                            <button class="btn btn-sm btn-danger delete-btn" data-id="{{ user.id }}">Delete</button>
+                            <button class="btn btn-sm btn-warning reset-password-btn" data-id="{{ user.id }}">Reset PW</button>
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% endif %}
-                </td>
-                <td id="kasm-{{ user.id }}">{{ user.kasm_server_needed }}</td>
-                <td>
-                    {% for section in user.sections %}
-                    {{ section.abbreviation }}{% if not loop.last %}, {% endif %}
                     {% endfor %}
-                </td>
-                <td id="commits-{{ user.uid }}">Loading...</td>
-                <td>
-                    <button class="btn btn-primary edit-btn" data-id="{{ user.id }}">Edit</button>
-                    {% if current_user.role == 'Admin' %}
-                    <button class="btn btn-danger delete-btn" data-id="{{ user.id }}">Delete</button>
-                    <button class="btn btn-warning reset-password-btn" data-id="{{ user.id }}">Reset Password</button>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endif %}
-            {% endfor %}
-        </tbody>
-    </table>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════
+             SIP EVENTS TAB  (user_management.db → sip_events)
+             ═══════════════════════════════════════════════════ -->
+        <div class="tab-pane fade" id="panel-events" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">SIP Events</h4>
+                <button class="btn btn-success btn-sm" id="new-event-btn">+ New Event</button>
+            </div>
+            <table class="table table-striped table-sm" id="eventsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Date</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Location</th>
+                        <th>Type</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="events-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════
+             BLOG POSTS TAB  (user_management.db → blog_posts)
+             ═══════════════════════════════════════════════════ -->
+        <div class="tab-pane fade" id="panel-blog" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Blog Posts</h4>
+                <button class="btn btn-success btn-sm" id="new-post-btn">+ New Post</button>
+            </div>
+            <table class="table table-striped table-sm" id="blogTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Event Date</th>
+                        <th>Program Tag</th>
+                        <th>Published</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="blog-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════
+             CONTACT MESSAGES TAB  (sip_contact_submissions)
+             ═══════════════════════════════════════════════════ -->
+        <div class="tab-pane fade" id="panel-contact" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Contact Messages</h4>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" id="contact-filter-type" style="width:auto;">
+                        <option value="">All Types</option>
+                        <option value="involved">Get Involved</option>
+                        <option value="help">Get Help</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="contact-filter-status" style="width:auto;">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" id="contact-reload-btn">↻ Reload</button>
+                </div>
+            </div>
+            <table class="table table-striped table-sm" id="contactTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>UID</th>
+                        <th>Type</th>
+                        <th>Selection</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                        <th>Reviewed By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="contact-tbody"></tbody>
+            </table>
+        </div>
+
+    </div><!-- /tab-content -->
+</div>
+
+<!-- ══════════════════════════════════════════
+     SIP EVENT Modal
+     ══════════════════════════════════════════ -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalLabel">Event</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="event-id">
+                <div class="mb-2"><label class="form-label">Title</label><input type="text" class="form-control" id="event-title"></div>
+                <div class="mb-2"><label class="form-label">Date</label><input type="date" class="form-control" id="event-date"></div>
+                <div class="row mb-2">
+                    <div class="col"><label class="form-label">Start Time</label><input type="text" class="form-control" id="event-start" placeholder="e.g. 6:30 PM"></div>
+                    <div class="col"><label class="form-label">End Time</label><input type="text" class="form-control" id="event-end" placeholder="e.g. 8:00 PM"></div>
+                </div>
+                <div class="mb-2"><label class="form-label">Location</label><input type="text" class="form-control" id="event-location"></div>
+                <div class="mb-2">
+                    <label class="form-label">Event Type</label>
+                    <select class="form-select" id="event-type">
+                        <option value="blue">Blue (Member Meeting)</option>
+                        <option value="gold">Gold (Board/Special)</option>
+                    </select>
+                </div>
+                <div class="mb-2"><label class="form-label">Notes</label><textarea class="form-control" id="event-notes" rows="3"></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-event-btn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     BLOG POST Modal
+     ══════════════════════════════════════════ -->
+<div class="modal fade" id="postModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="postModalLabel">Blog Post</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="post-id">
+                <div class="mb-2"><label class="form-label">Title</label><input type="text" class="form-control" id="post-title"></div>
+                <div class="mb-2"><label class="form-label">Event Date</label><input type="date" class="form-control" id="post-event-date"></div>
+                <div class="mb-2"><label class="form-label">Program Tag</label><input type="text" class="form-control" id="post-program-tag"></div>
+                <div class="mb-2"><label class="form-label">Description</label><textarea class="form-control" id="post-description" rows="5"></textarea></div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="post-published">
+                    <label class="form-check-label">Published</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-post-btn">Save</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-    $(document).ready(function () {
-        // Initialize DataTables
-        const table =  $("#userTable").DataTable(); // repersents table
+$(document).ready(function () {
 
-        table.page.len(-1).draw();  // shows all users and commits
-        // Function to fetch commits (DISABLED)
-        /*
-        async function fetchAdminData(userUid) {
-            const commitsElement = $(`#commits-${userUid}`);
+    // ─── USERS TABLE ────────────────────────────────────────────
+    const userTable = $("#userTable").DataTable({ pageLength: 25 });
 
-            if (!commitsElement.length) return;
-
-            const today = new Date();
-            const startDate = new Date();
-            startDate.setDate(today.getDate() - 30);
-
-            const formattedStartDate = startDate.toISOString().split('T')[0];
-            const formattedEndDate = today.toISOString().split('T')[0];
-
-            try {
-                const response = await fetch(`/api/analytics/commits/${userUid}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start_date: formattedStartDate, end_date: formattedEndDate })
-                });
-
-                if (!response.ok) throw new Error(`Error: ${response.statusText}`);
-
-                const data = await response.json();
-                commitsElement.text(data.commits?.total_commit_contributions || "0");
-
-            } catch (error) {
-                console.error("Error:", error);
-            }
-        }
-        */
-
-        // Batch processing with delay (DISABLED)
-        /*
-        async function processUsersWithDelay() {
-            const users = $("[id^='commits-']");
-            console.log(`Total users found: ${users.length}`);
-
-            for (let i = 0; i < users.length; i++) {
-                const userUid = users[i].id.split("-")[1];
-
-                await fetchAdminData(userUid);
-
-                if ((i + 1) % 15 === 0) {
-                    console.log(`Pausing for 5 seconds...`);
-                    await new Promise(resolve => setTimeout(resolve, 4000)); // tinker this however depending on rate limiting
-                } else {
-                    console.log(`Waiting for 2 seconds...`);
-                    await new Promise(resolve => setTimeout(resolve, 100));  // tinker this however depending on rate limiting
-                }
-            }
-
-            table.page.len(10).draw();  
-        }
-        */
-
-        // Start processing users with a delay (DISABLED)
-        // processUsersWithDelay();
-
-        // Handle delete action
-        document.querySelectorAll(".delete-btn").forEach(button => {
-            button.addEventListener("click", function () {
-                const id = this.dataset.id;
-                fetch(`/users/delete/${id}`, {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        alert(data.message || "User deleted successfully.");
-                        location.reload();
-                    })
-                    .catch(error => {
-                        console.error("Error deleting user:", error);
-                        alert("Error deleting user.");
-                    });
-            });
-        });
-
-        // Handle reset password action
-        document.querySelectorAll(".reset-password-btn").forEach(button => {
-            button.addEventListener("click", function () {
-                const id = this.dataset.id;
-                fetch(`/users/reset_password/${id}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        alert(data.message || "Password reset successfully.");
-                    })
-                    .catch(error => {
-                        console.error("Error resetting password:", error);
-                        alert("Error resetting password.");
-                    });
-            });
+    document.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.addEventListener("click", function () {
+            if (!confirm('Delete this user?')) return;
+            fetch(`/users/delete/${this.dataset.id}`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            })
+            .then(r => r.json())
+            .then(d => { alert(d.message || "Deleted."); location.reload(); })
+            .catch(() => alert("Error deleting user."));
         });
     });
+
+    document.querySelectorAll(".reset-password-btn").forEach(btn => {
+        btn.addEventListener("click", function () {
+            fetch(`/users/reset_password/${this.dataset.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            })
+            .then(r => r.json())
+            .then(d => alert(d.message || "Password reset."))
+            .catch(() => alert("Error resetting password."));
+        });
+    });
+
+
+    // ─── SIP EVENTS TABLE ───────────────────────────────────────
+    const eventsTable = $("#eventsTable").DataTable({
+        columns: [
+            { data: 'id' },
+            { data: 'title' },
+            { data: 'date' },
+            { data: 'startTime' },
+            { data: 'endTime' },
+            { data: 'location' },
+            { data: 'eventType', render: v => v === 'gold'
+                ? '<span class="badge" style="background:#C8973A">Gold</span>'
+                : '<span class="badge bg-primary">Blue</span>' },
+            { data: 'notes', defaultContent: '' },
+            { data: null, orderable: false, render: (d, t, row) => `
+                <button class="btn btn-sm btn-primary ev-edit-btn" data-id="${row.id}">Edit</button>
+                <button class="btn btn-sm btn-danger ev-del-btn" data-id="${row.id}">Delete</button>
+            ` }
+        ]
+    });
+
+    function loadEvents() {
+        fetch('/api/sip/events')
+            .then(r => r.json())
+            .then(events => {
+                eventsTable.clear();
+                eventsTable.rows.add(events);
+                eventsTable.draw();
+                bindEventButtons();
+            })
+            .catch(err => console.error('Events load error:', err));
+    }
+
+    function bindEventButtons() {
+        document.querySelectorAll('.ev-edit-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                fetch(`/api/sip/events/${this.dataset.id}`)
+                    .then(r => r.json())
+                    .then(ev => {
+                        document.getElementById('event-id').value = ev.id;
+                        document.getElementById('event-title').value = ev.title;
+                        document.getElementById('event-date').value = ev.date;
+                        document.getElementById('event-start').value = ev.startTime;
+                        document.getElementById('event-end').value = ev.endTime;
+                        document.getElementById('event-location').value = ev.location;
+                        document.getElementById('event-type').value = ev.eventType;
+                        document.getElementById('event-notes').value = ev.notes || '';
+                        document.getElementById('eventModalLabel').textContent = 'Edit Event';
+                        new bootstrap.Modal(document.getElementById('eventModal')).show();
+                    });
+            });
+        });
+
+        document.querySelectorAll('.ev-del-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (!confirm('Delete this event?')) return;
+                fetch(`/api/sip/events/${this.dataset.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                })
+                .then(r => r.json())
+                .then(() => loadEvents())
+                .catch(() => alert('Error deleting event.'));
+            });
+        });
+    }
+
+    document.getElementById('new-event-btn').addEventListener('click', function () {
+        ['event-id','event-title','event-date','event-start','event-end','event-location','event-notes'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('event-type').value = 'blue';
+        document.getElementById('eventModalLabel').textContent = 'New Event';
+        new bootstrap.Modal(document.getElementById('eventModal')).show();
+    });
+
+    document.getElementById('save-event-btn').addEventListener('click', function () {
+        const id = document.getElementById('event-id').value;
+        const body = {
+            title:     document.getElementById('event-title').value,
+            date:      document.getElementById('event-date').value,
+            startTime: document.getElementById('event-start').value,
+            endTime:   document.getElementById('event-end').value,
+            location:  document.getElementById('event-location').value,
+            eventType: document.getElementById('event-type').value,
+            notes:     document.getElementById('event-notes').value,
+        };
+        const isEdit = !!id;
+        const url  = isEdit ? `/api/sip/events/${id}` : '/api/sip/events';
+        const method = isEdit ? 'PUT' : 'POST';
+        fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) })
+            .then(r => r.json())
+            .then(d => {
+                if (d.message && !d.id) { alert(d.message); return; }
+                bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+                loadEvents();
+            })
+            .catch(() => alert('Error saving event.'));
+    });
+
+    // Load events when that tab is first shown
+    document.getElementById('tab-events').addEventListener('shown.bs.tab', function () {
+        if (!eventsTable.data().count()) loadEvents();
+    });
+
+
+    // ─── BLOG POSTS TABLE ───────────────────────────────────────
+    const blogTable = $("#blogTable").DataTable({
+        columns: [
+            { data: 'id' },
+            { data: 'title' },
+            { data: 'author' },
+            { data: 'event_date' },
+            { data: 'program_tag', defaultContent: '' },
+            { data: 'published', render: v => v
+                ? '<span class="badge bg-success">Yes</span>'
+                : '<span class="badge bg-secondary">No</span>' },
+            { data: 'created_at' },
+            { data: null, orderable: false, render: (d, t, row) => `
+                <button class="btn btn-sm btn-primary post-edit-btn" data-id="${row.id}">Edit</button>
+                <button class="btn btn-sm btn-warning post-pub-btn" data-id="${row.id}" data-published="${row.published}">
+                    ${row.published ? 'Unpublish' : 'Publish'}
+                </button>
+                <button class="btn btn-sm btn-danger post-del-btn" data-id="${row.id}">Delete</button>
+            ` }
+        ]
+    });
+
+    function loadPosts() {
+        fetch('/api/blog')
+            .then(r => r.json())
+            .then(posts => {
+                blogTable.clear();
+                blogTable.rows.add(posts);
+                blogTable.draw();
+                bindPostButtons();
+            })
+            .catch(err => console.error('Blog load error:', err));
+    }
+
+    function bindPostButtons() {
+        document.querySelectorAll('.post-edit-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                fetch(`/api/blog/post?id=${this.dataset.id}`)
+                    .then(r => r.json())
+                    .then(post => {
+                        document.getElementById('post-id').value = post.id;
+                        document.getElementById('post-title').value = post.title;
+                        document.getElementById('post-event-date').value = post.event_date;
+                        document.getElementById('post-program-tag').value = post.program_tag || '';
+                        document.getElementById('post-description').value = post.description;
+                        document.getElementById('post-published').checked = post.published;
+                        document.getElementById('postModalLabel').textContent = 'Edit Post';
+                        new bootstrap.Modal(document.getElementById('postModal')).show();
+                    });
+            });
+        });
+
+        document.querySelectorAll('.post-pub-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const published = this.dataset.published === 'true';
+                fetch('/api/blog/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: parseInt(this.dataset.id), published: !published })
+                })
+                .then(() => loadPosts())
+                .catch(() => alert('Error toggling publish.'));
+            });
+        });
+
+        document.querySelectorAll('.post-del-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (!confirm('Delete this post?')) return;
+                fetch('/api/blog', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: parseInt(this.dataset.id) })
+                })
+                .then(() => loadPosts())
+                .catch(() => alert('Error deleting post.'));
+            });
+        });
+    }
+
+    document.getElementById('new-post-btn').addEventListener('click', function () {
+        ['post-id','post-title','post-event-date','post-program-tag','post-description'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('post-published').checked = false;
+        document.getElementById('postModalLabel').textContent = 'New Post';
+        new bootstrap.Modal(document.getElementById('postModal')).show();
+    });
+
+    document.getElementById('save-post-btn').addEventListener('click', function () {
+        const id = document.getElementById('post-id').value;
+        const body = {
+            title:       document.getElementById('post-title').value,
+            event_date:  document.getElementById('post-event-date').value,
+            program_tag: document.getElementById('post-program-tag').value || null,
+            description: document.getElementById('post-description').value,
+            published:   document.getElementById('post-published').checked
+        };
+        const isEdit = !!id;
+        if (isEdit) body.id = parseInt(id);
+        fetch('/api/blog', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.message && !d.id) { alert(d.message); return; }
+            bootstrap.Modal.getInstance(document.getElementById('postModal')).hide();
+            loadPosts();
+        })
+        .catch(() => alert('Error saving post.'));
+    });
+
+    // Load blog posts when that tab is first shown
+    document.getElementById('tab-blog').addEventListener('shown.bs.tab', function () {
+        if (!blogTable.data().count()) loadPosts();
+    });
+
+
+    // ─── CONTACT MESSAGES TABLE ─────────────────────────────────
+    const SELECTION_LABELS = {
+        'volunteer':            '🙋 Volunteer',
+        'member':               '🤝 Become a Member',
+        'transitional-housing': '🏠 Transitional Housing',
+        'live-your-dream':      '🌟 Live Your Dream',
+        'dream-it-be-it':       '✨ Dream It, Be It',
+        'abraxas':              '🎓 Abraxas Scholarship',
+        'colegio':              '🌎 Colegio La Esperanza',
+        'stat':                 '🛡️ STAT!',
+    };
+
+    const STATUS_BADGES = {
+        'new':         '<span class="badge bg-danger">New</span>',
+        'in_progress': '<span class="badge bg-warning text-dark">In Progress</span>',
+        'resolved':    '<span class="badge bg-success">Resolved</span>',
+    };
+
+    const contactTable = $("#contactTable").DataTable({
+        columns: [
+            { data: 'id', width: '40px' },
+            { data: 'uid' },
+            { data: 'form_type', render: v => v === 'involved'
+                ? '<span class="badge bg-success">Get Involved</span>'
+                : '<span class="badge bg-primary">Get Help</span>' },
+            { data: 'selection', render: v => SELECTION_LABELS[v] || v },
+            { data: 'message', defaultContent: '<em class="text-muted">—</em>',
+              render: (v) => v ? `<span title="${v.replace(/"/g,'&quot;')}" style="max-width:220px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v}</span>` : '<em class="text-muted">—</em>' },
+            { data: 'status', render: v => STATUS_BADGES[v] || v },
+            { data: 'created_at', render: v => v ? v.replace('T',' ').slice(0,16) : '' },
+            { data: 'reviewed_by', defaultContent: '<em class="text-muted">—</em>' },
+            { data: null, orderable: false, render: (d, t, row) => `
+                <select class="form-select form-select-sm contact-status-select" data-id="${row.id}" style="width:auto;display:inline-block;">
+                    <option value="new"         ${row.status==='new'         ? 'selected':''}>New</option>
+                    <option value="in_progress" ${row.status==='in_progress' ? 'selected':''}>In Progress</option>
+                    <option value="resolved"    ${row.status==='resolved'    ? 'selected':''}>Resolved</option>
+                </select>
+                <button class="btn btn-sm btn-danger contact-del-btn ms-1" data-id="${row.id}">Delete</button>
+            ` }
+        ],
+        order: [[6, 'desc']],
+        pageLength: 25,
+    });
+
+    function loadContacts() {
+        const type   = document.getElementById('contact-filter-type').value;
+        const status = document.getElementById('contact-filter-status').value;
+        let url = '/api/sip/contact?per_page=100';
+        if (type)   url += `&form_type=${type}`;
+        if (status) url += `&status=${status}`;
+
+        fetch(url, { credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+                contactTable.clear();
+                contactTable.rows.add(data.items || []);
+                contactTable.draw();
+                bindContactButtons();
+            })
+            .catch(err => console.error('Contact load error:', err));
+    }
+
+    function bindContactButtons() {
+        document.querySelectorAll('.contact-status-select').forEach(sel => {
+            sel.addEventListener('change', function () {
+                fetch(`/api/sip/contact/${this.dataset.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ status: this.value })
+                })
+                .then(r => r.json())
+                .then(() => loadContacts())
+                .catch(() => alert('Error updating status.'));
+            });
+        });
+
+        document.querySelectorAll('.contact-del-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (!confirm('Delete this submission?')) return;
+                fetch(`/api/sip/contact/${this.dataset.id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                })
+                .then(() => loadContacts())
+                .catch(() => alert('Error deleting submission.'));
+            });
+        });
+    }
+
+    document.getElementById('tab-contact').addEventListener('shown.bs.tab', function () {
+        if (!contactTable.data().count()) loadContacts();
+    });
+
+    document.getElementById('contact-reload-btn').addEventListener('click', loadContacts);
+    document.getElementById('contact-filter-type').addEventListener('change', loadContacts);
+    document.getElementById('contact-filter-status').addEventListener('change', loadContacts);
+
+});
 </script>
 
 {% endblock %}
