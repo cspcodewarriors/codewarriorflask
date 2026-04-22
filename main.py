@@ -5,10 +5,12 @@ from flask_login import current_user, login_user, logout_user
 from flask.cli import AppGroup
 from flask_login import current_user, login_required
 from flask import current_app
+from flask_socketio import SocketIO, send # I'm trying to implement websockets myself, wish me luck - West
 from dotenv import load_dotenv
 
 # import "objects" from "this" project
-from __init__ import app, db, login_manager  # Key Flask objects 
+from __init__ import app, db, login_manager  # Key Flask objects
+socketio = SocketIO(app) # Putting this in here, hopefully GitHub doesn't explode
 # API endpoints
 from api.user import user_api 
 from api.python_exec_api import python_exec_api
@@ -233,9 +235,15 @@ def generate_data():
 
 app.cli.add_command(custom_cli)
 
+@socketio.on('message') # websocket event handler for 'message' events
+def handle_message(msg):
+    print("Message:", msg)
+    send(msg, broadcast=True)  # send to all clients
+
 # this runs the flask application on the development server
 if __name__ == "__main__":
     host = "0.0.0.0"
     port = app.config['FLASK_PORT']
     print(f"** Server running: http://localhost:{port}")
     app.run(debug=True, host=host, port=port, use_reloader=False)
+    socketio.run(app, debug=True)
