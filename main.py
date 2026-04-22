@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # import "objects" from "this" project
 from __init__ import app, db, login_manager  # Key Flask objects
-socketio = SocketIO(app) # Putting this in here, hopefully GitHub doesn't explode
+socketio = SocketIO(app, cors_allowed_origins="*") # Putting this in here, hopefully GitHub doesn't explode
 # API endpoints
 from api.user import user_api 
 from api.python_exec_api import python_exec_api
@@ -245,5 +245,4 @@ if __name__ == "__main__":
     host = "0.0.0.0"
     port = app.config['FLASK_PORT']
     print(f"** Server running: http://localhost:{port}")
-    app.run(debug=True, host=host, port=port, use_reloader=False)
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, host=host, port=port, use_reloader=False)
