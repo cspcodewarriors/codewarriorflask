@@ -434,9 +434,8 @@ class UserAPI:
                                 token,
                                 max_age=43200,  # 12 hours in seconds
                                 secure=False,
-                                httponly=False,  # Set to True for more security if JS access not needed
-                                path='/',
-                                samesite='Lax'
+                                httponly=False,  # Allow JS to read for debugging
+                                path='/'
                             )
                         print(f"Token set: {token}")
                         return resp 
