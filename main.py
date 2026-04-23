@@ -29,6 +29,7 @@ from api.sip_events_api import sip_events_api
 from api.blog import blog_api
 from api.blog_image import blog_image_api
 from api.contact import sip_contact_api
+from api.notification_api import notification_api
 #from api.announcement import announcement_api ##temporary revert
 
 # database Initialization functions
@@ -46,6 +47,7 @@ from model.persona import Persona, initPersonas, initPersonaUsers
 from model.post import Post, init_posts
 from model.microblog import MicroBlog, Topic, initMicroblogs
 from model.sip_event import SipEvent, initSipEvents
+from model.notification import initNotifications
 from hacks.jokes import initJokes
 
 import os
@@ -74,13 +76,15 @@ app.register_blueprint(joke_api)  # Register the joke API blueprint
 app.register_blueprint(post_api)  # Register the social media post API
 app.register_blueprint(sip_events_api)  # Register the SIP calendar events API
 app.register_blueprint(blog_image_api)
-app.register_blueprint(sip_contact_api)  # Register the SIP contact form API
+app.register_blueprint(sip_contact_api)    # Register the SIP contact form API
+app.register_blueprint(notification_api)   # Register the notifications API
 # app.register_blueprint(announcement_api) ##temporary revert
 
 # Jokes file initialization
 with app.app_context():
     initJokes()
     initSipEvents()
+    initNotifications()
 
 # Tell Flask-Login the view function name of your login route
 login_manager.login_view = "login"
@@ -142,6 +146,13 @@ def blog_table():
     if current_user.role != 'Admin':
         return redirect(url_for('index'))
     return render_template("blog_table.html")
+
+@app.route('/sip/volunteers')
+@login_required
+def sip_volunteers():
+    if current_user.role != 'Admin':
+        return redirect(url_for('index'))
+    return render_template("sip_volunteers.html", project="SIP Volunteers")
 
 @app.route('/users/table2')
 @login_required

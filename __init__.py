@@ -45,7 +45,7 @@ cors = CORS(
        'https://sip.opencodingsociety.com',
        'https://sipoway.opencodingsociety.com'
    ],
-   methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+   methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 )
 
 
