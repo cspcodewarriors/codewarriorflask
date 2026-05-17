@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 from flask import current_app
 from flask_socketio import SocketIO, send # I'm trying to implement websockets myself, wish me luck - West
 from dotenv import load_dotenv
+from ig_routes import ig
 
 # import "objects" from "this" project
 from __init__ import app, db, login_manager  # Key Flask objects
@@ -32,6 +33,7 @@ from api.blog import blog_api
 from api.blog_image import blog_image_api
 from api.contact import sip_contact_api
 from api.notification_api import notification_api
+from api.ig_api import ig_api
 #from api.announcement import announcement_api ##temporary revert
 
 # database Initialization functions
@@ -51,6 +53,7 @@ from model.microblog import MicroBlog, Topic, initMicroblogs
 from model.sip_event import SipEvent, initSipEvents
 from model.notification import initNotifications
 from hacks.jokes import initJokes
+from model.ig_token import initIgToken
 
 import os
 
@@ -80,6 +83,8 @@ app.register_blueprint(sip_events_api)  # Register the SIP calendar events API
 app.register_blueprint(blog_image_api)
 app.register_blueprint(sip_contact_api)    # Register the SIP contact form API
 app.register_blueprint(notification_api)   # Register the notifications API
+app.register_blueprint(ig_api)
+app.register_blueprint(ig)
 # app.register_blueprint(announcement_api) ##temporary revert
 
 # Jokes file initialization
@@ -87,6 +92,7 @@ with app.app_context():
     initJokes()
     initSipEvents()
     initNotifications()
+    initIgToken()
 
 # Tell Flask-Login the view function name of your login route
 login_manager.login_view = "login"
