@@ -1,265 +1,126 @@
-# README
+# Soroptimist International of Poway — Flask Backend
 
-> This is a project to support AP Computer Science Principles (APCSP) as well as a UC articulated Data Structures course. It was crafted iteratively starting in 2020 to the present time.  The primary purposes are ...
+This is the Flask backend server for the [Soroptimist International of Poway (SIP)](https://sipoway.opencodingsociety.com/) website, built and maintained by the CSP Code Warriors student team.
 
-- Used as starter code for student projects for `AP CSP 1 and 2` and `Data Structures 1` curriculum.
-- Used to teach key principles in learning the Python Flask programming environment.
-- Used as a backend server to service API's in a frontend-to-backend pipeline. Review the `api` folder in the project for endpoints.
-- Contains a minimal frontend, mostly to support Administrative functionality using the `templates` folder and `Jinja2` to define UIs.
-- Contains SQL database code in the `model` folder to introduce concepts of persistent data and storage.  Perisistence folder is `instance/volumes` for generated SQLite3 db.
-- Contains capabilities for deployment and has been used with AWS, Ubuntu, Docker, docker-compose, and Nginx to `deploy a WSGI server`.
-- Contains APIs to support `user authentication and cookies`, a great deal of which was contributed by Aiden Wu a former student in CSP.  
+- **GitHub:** [cspcodewarriors/codewarriorflask](https://github.com/cspcodewarriors/codewarriorflask)
+- **Live site:** [https://sipoway.opencodingsociety.com/](https://sipoway.opencodingsociety.com/)
 
-## Flask Portfolio Starter
+## What This Project Does
 
-Use this project to create a Flask Server.
+- Serves REST APIs consumed by the SIP frontend (see the `api/` folder for all endpoints).
+- Manages calendar events, volunteer/contact form submissions, and the SIP event blog.
+- Handles user authentication with JWT cookies and role-based access control.
+- Stores persistent data in SQLite (local) or a remote DB (production) via SQLAlchemy — see `model/` and `instance/volumes/`.
+- Provides a minimal admin UI using Flask templates and Jinja2.
+- Deployable via Docker, docker-compose, and Nginx as a WSGI server.
 
-- GitHub link: [flask](https://github.com/open-coding-society/flask), runtime link is published under the About on this same page.
-- `Use this as template` option is availble if you plan on making your instance of the repository.
-- `Fork` the repository if you plan to contribute though GitHub PRs.
+---
 
-## The conventional way to get started
+## API Reference
 
-> Quick steps that can be used with MacOS, WSL Ubuntu, or Ubuntu; this uses Python 3.9 or later as a prerequisite.
+### Authentication & Users
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/authenticate` | Log in and receive a JWT cookie |
+| GET | `/api/id` | Get the currently logged-in user |
+| POST | `/api/user` | Create a new user account |
+| PUT | `/api/user` | Update a user |
+| DELETE | `/api/user` | Delete a user |
 
-- Open a Terminal, clone a project and `cd` into the project directory.  Use a `different link` and name for `name` for clone to match your repo.
+### SIP Events (Calendar)
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/sip/events` | Public | List all calendar events |
+| GET | `/api/sip/events/<id>` | Public | Get a single event |
+| POST | `/api/sip/events` | Admin | Create a new event |
+| PUT | `/api/sip/events/<id>` | Admin | Update an event |
+| DELETE | `/api/sip/events/<id>` | Admin | Delete an event |
 
+### SIP Contact & Volunteer Forms
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/sip/contact/involved` | Login | Submit a Get Involved form |
+| POST | `/api/sip/contact/help` | Login | Submit a Get Help form |
+| GET | `/api/sip/contact/pending` | Admin | List pending volunteer requests |
+| GET | `/api/sip/contact` | Admin | List all submissions |
+| GET | `/api/sip/contact/<id>` | Admin | Get a single submission |
+| PATCH | `/api/sip/contact/<id>` | Admin | Update submission status |
+| PATCH | `/api/sip/contact/<id>/approve` | Admin | Approve a volunteer request |
+| PATCH | `/api/sip/contact/<id>/decline` | Admin | Decline a volunteer request |
+| DELETE | `/api/sip/contact/<id>` | Admin | Hard-delete a submission |
+
+### SIP Blog
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/blog` | Admin | Create a blog post (saved as draft by default) |
+| GET | `/api/blog` | Public/Admin | Published posts (public); all posts including drafts (Admin) |
+| PUT | `/api/blog` | Admin | Update an existing post |
+| DELETE | `/api/blog` | Admin | Delete a post |
+| POST | `/api/blog/image` | Admin | Upload an image for a blog post |
+
+
+### AI & Utilities
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/gemini` | Chat with Gemini AI assistant |
+| POST | `/api/groq` | Chat with Groq AI assistant |
+| GET | `/api/jokes/` | Get a random joke |
+
+---
+
+## Database Management Workflow
+
+Follow this procedure when you need to update the schema or sync data between local and production. Steps 1, 2, 3, and 5 run on your **local** machine. Step 4 runs on the **production server** (via Cockpit).
+
+> Before starting, make sure `ADMIN_PASSWORD` is set in your `.env` and your `venv` is active.
+
+### Full Workflow
+
+**1. Initialize your local DB** with clean seed data (good for testing schema changes):
 ```bash
-mkdir -p ~/openccs; cd ~/opencs
-
-git clone https://github.com/open-coding-ocietyflask.git
-
-cd flask
+python scripts/db_init.py
 ```
 
-- Install python dependencies for Flask, etc.
-
+**2. Pull production data to local** so you can test with real data:
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+python scripts/db_migrate-prod2sqlite.py
 ```
 
-### Open project in VSCode
+**3. Test your changes locally.** Make sure everything works before touching production.
 
-- Prepare VSCode and run
-  - From Terminal run VSCode
+**4. On the production server** (in Cockpit, inside the `flask` directory):
+```bash
+# Back up the current DB
+cp instance/volumes/sqlite.db instance/volumes/backups/sqlite_YYYY-MM-DD.db
 
-  ```bash
-  code .
-  ```
+# Pull latest code
+git pull
 
-  - Open Setting: Ctrl-Shift P or Cmd-Shift
-    - Search Python: Select Interpreter.
-    - Match interpreter to `which python` from terminal.
-    - Shourd be ./venv/bin/python
+# Update schema to match latest code
+python scripts/db_init.py
+```
 
-  - From Extensions Marketplace install `SQLite3 Editor`
-    - Open and view SQL database file `instance/volumes/user_management.db`
+**5. Push your local DB to production** (update `.env` with the production `ADMIN_PASSWORD` first):
+```bash
+python scripts/db_restore-sqlite2prod.py
+```
 
-  - Make a local `.env` file in root of project to contain your secret passwords
+### Quick Reference
+| Step | Command | Where |
+|------|---------|--------|
+| Init local DB | `python scripts/db_init.py` | Local |
+| Pull prod → local | `python scripts/db_migrate-prod2sqlite.py` | Local |
+| Test | — | Local |
+| Backup + pull + init | see above | Production (Cockpit) |
+| Push local → prod | `python scripts/db_restore-sqlite2prod.py` | Local |
 
-  ```shell
-  # Port configuration
-  # FLASK_PORT=8001
-  # Admin user reset password 
-  DEFAULT_PASSWORD='123Qwerty!'
-  DEFAULT_PFP='default.png'
-  # Admin user defaults
-  ADMIN_USER='Thomas Edison'
-  ADMIN_UID='toby'
-  ADMIN_PASSWORD='123Toby!'
-  ADMIN_PFP='toby.png'
-  # Teacher user defaults
-  TEACHER_USER='Nikola Tesla'
-  TEACHER_UID='niko'
-  TEACHER_PASSWORD='123Niko!'
-  TEACHER_PFP='niko.png'
-  # Default user for testing 
-  USER_NAME='Grace Hopper'
-  USER_UID='hop'
-  USER_PASSWORD='123Hop!'
-  USER_PFP='hop.png'
-  # Convience user defaults
-  MY_NAME='John Mortensen'
-  MY_UID='jm1021'
-  MY_ROLE='admin'
-  # Obtain key, [Google AI Studio](https://aistudio.google.com/api-keys)
-  GEMINI_API_KEY=xxxxx
-  GEMINI_SERVER=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
-  # Obtain key, [Groq Console](https://console.groq.com/keys)
-  GROQ_API_KEY=xxxxx
-  GROQ_SERVER=https://api.groq.com/openai/v1/chat/completions
-  # GitHub Configuation
-  GITHUB_TOKEN=ghp_xxx
-  GITHUB_TARGET_TYPE=user  # Use 'organization' or 'user'
-  GITHUB_TARGET_NAME=Open-Coding-Society
-  # KASM Configuration (server is defaulted)
-  KASM_SERVER=https://kasm.opencodingsociety.com
-  KASM_API_KEY_SECRET=xxxx
-  KASM_API_KEY=xxx
-  # DB Configuration, AWS RDS
-  IS_PRODUCTION=false # false = LOCAL true = DEPLOYED
-  DB_USERNAME='admin'
-  DB_PASSWORD='xxxxx'
-  ```
 
-  - Make the database and init data.
-  
-  ```bash
-  ./scripts/db_init.py
-  ```
 
-  - Explore newly created SQL database
-    - Navigate too instance/volumes
-    - View/open `user_management.db`
-    - Loook at `users` table in viewer
+## Implementation History
 
-  - Run the Project
-    - Select/open `main.py` in VSCode
-    - Start with Play button
-      - Play button sub option contains Debug
-    - Click on localhost:8087 in terminal to launch
-      - Output window will contain page to launch http://localhost:8587
-    - Login using your secrets from env
+> Soroptimist International of Poway features added by CSP Code Warriors.
 
-  - Basic API test
-    - [Jokes](http://localhost:8587/api/jokes/)
-
-### User Operations
-| Purpose | Correct Endpoint | What It Does |
-|---------|-----------------|--------------|
-| **Login** | `/api/authenticate` | Authenticates user & sets cookie |
-| **Get User** | `/api/id` | Gets current logged-in user |
-| **Signup** | `/api/user` | Creates new user account |
-| **Posts** | `/api/post/all` | Gets all social media posts |
-| **Create Post** | `/api/post` | Creates a new post |
-| **Gemini AI** | `/api/gemini` | Chat with AI assistant |
-
-### MicroBlog Operations
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/microblog` | Create new post |
-| GET | `/api/microblog` | Get posts (with filters) |
-| PUT | `/api/microblog` | Update post |
-| DELETE | `/api/microblog` | Delete post |
-
-**Query Parameters for GET:**
-- `?topicId=1` - Posts for specific topic
-- `?userId=123` - Posts by specific user  
-- `?search=flask` - Search content
-- `?limit=20` - Limit results
-
-### MicroBlog Interactions
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/microblog/reply` | Add reply to post |
-| POST | `/api/microblog/reaction` | Add reaction (👍, ❤️, etc.) |
-| DELETE | `/api/microblog/reaction` | Remove reaction |
-
-### Microblog Page Integration
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/microblog/page/<page_key>` | Get posts for specific page |
-| POST | `/api/microblog/topics/auto-create` | Auto-create topic for page |
-| GET | `/api/microblog/topics?pagePath=X` | Get topic by page path |
-
-## Idea
-
-### Files and Directories in this Project
-
-The key files and directories in this project are in these online articles.
-
-[Python/Flask](https://pages.opencodingsociety.com/python/flask)
-
-[Legacy - Flask Intro](https://pages.opencodingsociety.com/flask-overview)
-
-### Implementation Summary
-
-#### Oct 2025
-
-> Updates for 2025-2026 school year.  Focus on documentation and API functionality.
-
-- Work to make documentation materials useful.
-- Add gemini API's
-- Add microblog API's, social medai support
-
-#### July 2024
-
-> Updates for 2024 too 2025 school year.  Primary addition is a fully functional backend for JWT login system.
-
-- Full support for JWT cookies
-- The API's for CRUD methods
-- The model definition User Class and related tables
-- SQLite and RDS support
-- Minimal Server side UI in Jinja2
-
-#### July 2023
-
-> Updates for 2023 to 2024 school year.
-
-- Update README with File Descriptions (anatomy)
-- Add JWT and add security features using a SQLite user database
-- Add migrate.sh to support sqlite schema and data upgrade
-
-#### January 2023
-
-> This project focuses on being a Python backend server.  Intentions are to only have simple UIs an perhaps some Administrative UIs.
-
-#### September 2021
-
-> Basic UI elements were implemented showing server side Flask with Jinja 2 capabilities.
-
-- The Project entry point is main.py, this enables the Flask Web App and provides the capability to render templates (HTML files)
-- The main.py is the  Web Server Gateway Interface, essentially it contains an HTTP route and HTML file relationship.  The Python code constructs WSGI relationships for index, kangaroos, walruses, and hawkers.
-- The project structure contains many directories and files.  The template directory (containing HTML files) and static directory (containing JS files) are common standards for HTML coding.  Static files can be pictures and videos, in this project they are mostly javascript backgrounds.
-- WSGI templates: index.html, kangaroos.html, ... are aligned with routes in main.py.
-- Other templates support WSGI templates.  The base.html template contains common Head, Style, Body, and Script definitions.  WSGI templates often "include" or "extend" these templates.  This is a way to reuse code.
-- The VANTA javascript statics (backgrounds) are shown and defaulted in base.html (birds) but are block-replaced as needed in other templates (solar, net, ...)
-- The Bootstrap Navbar code is in navbar.html. The base.html code includes navbar.html.  The WSGI html files extend base.html files.  This is a process of management and correlation to optimize code management.  For instance, if the menu changes discovery of navbar.html is easy, one change reflects on all WSGI html files.
-- Jinja2 variables usage is to isolate data and allow redefinitions of attributes in templates.  Observe "{% set variable = %}" syntax for definition and "{{ variable }}" for reference.
-- The base.html uses a combination of Bootstrap grid styling and custom CSS styling.  Grid styling in observation with the "<Col-3>" markers.  A Bootstrap Grid has a width of 12, thus four "Col-3" markers could fit on a Grid row.
-- A key purpose of this project is to embed links to other content.  The "href=" definition embeds hyperlinks into the rendered HTML.  The base.html file shows usage of "href={{github}}", the "{{github}}" is a Jinja2 variable.  Jinja2 variables are pre-processed by Python, a variable swap with value, before being sent to the browser.
-
-## Database Management Workflow with Scripts
-
-If you are working with the database, follow the below procedure to safely interact with the remote DB while applying changes locally. Certain scripts require flask to be running while others don't, so follow the instructions that the scripts provide.
-
-Note, steps 1,2,3,5 are on your development (LOCAL) server. You need to update your .env on development server and be sure all PRs are completed, pulled, and tested before you start pushing to production.
-
-0. Be sure ADMIN_PASSWORD is set in .env.  You will need a venv for the python scripts.
-
-1. Initialize your local DB with clean data. For example, this would be good to see that a schema update works correctly.
-   ```bash
-   python scripts/db_init.py
-   ```
-
-2. Pull the database content from the remote DB onto your local machine. This allows you to work with real data and test that real data works with your local changes.
-   ```bash
-   python scripts/db_migrate-prod2sqlite.py
-   ```
-
-3. TEST TEST TEST! Make sure your changes work correctly with the local DB.
-
-4. Now go onto the remote DB and back up the db using `cp sqlite.db backups/sqlite_year-month-day.db` in the volumes directory of the flask directory on cockpit. Then, run `git pull` to ensure that flask has been updated with the latest code. Then, run `python scripts/db_init.py` again to ensure that the remote DB schema is up to date with the latest code.
-
-5. Once you are satisfied with your changes, push the local DB content to the remote DB. This requires authentication, so you need to replace the ADMIN_PASSWORD in the .env file of "flask" with the production admin password.
-   ```bash
-   python scripts/db_restore-sqlite2prod.py
-   ```
-
-### Condensed DB/Schema update simple steps
-*(a copy of what's above, just condensed)*
-
-1. Initialize local DB: `python scripts/db_init.py`
-
-2. Pull production data to local: `python scripts/db_migrate-prod2sqlite.py`
-
-3. Test your changes locally
-
-4. On production server (in cockpit):
-   - Backup DB in volumes directory: `cp sqlite.db backups/sqlite_year-month-day.db`
-   - Update code: `git pull`
-   - Update schema: `python scripts/db_init.py`
-
-5. Push local changes to production: `python scripts/db_restore-sqlite2prod.py` (Requires admin password from production in .env)
+- SIP calendar events API (`/api/sip/events`) with Admin-only create/update/delete
+- SIP contact and volunteer form APIs (`/api/sip/contact`) with Admin approval workflow
+- SIP event blog API (`/api/blog`) with draft/publish support and image uploads
+- Notification system for volunteer approval status updates
