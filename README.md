@@ -68,6 +68,35 @@ This is the Flask backend server for the [Soroptimist International of Poway (SI
 
 ---
 
+## WebSocket — Real-time Garden
+
+A separate Socket.IO server (`socket/socket_server.py`) runs on port **8500** and powers real-time community presence in the garden — broadcasting when users join so their sprites appear live for all visitors.
+
+### Run the socket server
+
+```bash
+cd socket
+python socket_server.py
+```
+
+### Events
+
+**Client → Server**
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `player_join` | `{ name }` | Register a user entering the garden |
+
+**Server → Client (broadcast)**
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `player_joined` | `{ name }` | Fires when a user joins — all connected clients update the garden |
+
+### Allowed origins (CORS)
+- `http://localhost:8000`
+- `https://pages.opencodingsociety.com`
+
+---
+
 ## Database Management Workflow
 
 Follow this procedure when you need to update the schema or sync data between local and production. Steps 1, 2, 3, and 5 run on your **local** machine. Step 4 runs on the **production server** (via Cockpit).
