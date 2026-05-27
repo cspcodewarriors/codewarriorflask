@@ -153,3 +153,7 @@ python scripts/db_restore-sqlite2prod.py
 - SIP contact and volunteer form APIs (`/api/sip/contact`) with Admin approval workflow
 - SIP event blog API (`/api/blog`) with draft/publish support and image uploads
 - Notification system for volunteer approval status updates
+
+## DO NOT FORK THIS REPOSITORY!
+
+To future students picking this project up, please make a *new* repository by using this repo as a template. Do not make a fork.
